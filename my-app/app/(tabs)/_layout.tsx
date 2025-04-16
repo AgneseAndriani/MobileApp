@@ -25,15 +25,6 @@ export default function TabLayout() {
               ),
             }}
         />
-        <Tabs.Screen
-            name="contact"
-            options={{
-              title: 'Contact Us',
-              tabBarIcon: ({ color, focused }) => (
-                  <TabBarIcon name={focused ? 'people-circle' : 'people-circle-outline'} color={color} />
-              ),
-            }}
-        />
       </Tabs>
   );
 }

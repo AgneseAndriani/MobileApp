@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import type { Href } from 'expo-router';
+
 
 const LoginScreen = () => {
     const router = useRouter();
@@ -13,7 +15,7 @@ const LoginScreen = () => {
     const handleLogin = async () => {
         try {
             // 🔗 Chiamata al tuo server backend (personalizzala)
-            const response = await fetch('http:/192.168.1.13:3050/login', {
+            const response = await fetch('http://127.0.0.1:5000/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -21,17 +23,17 @@ const LoginScreen = () => {
                 body: JSON.stringify({ email, password }),
 
             });
-
-            console.log("Sto inviando:", email, password);
-
             const data = await response.json();
 
             if (data.success) {
-                router.push('/');
+                router.push('/home' as Href<string>);
+                
+              
             } else {
                 alert('Credenziali non valide');
             }
         } catch (error) {
+            console.log('Errore:', error);
             alert('Errore di connessione');
         }
     };
