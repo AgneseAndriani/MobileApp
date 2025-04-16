@@ -1,37 +1,41 @@
 import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
 import React from 'react';
 import { Link } from 'expo-router';
+import LayoutWrapper from '@/components/LayoutWrapper';
 
-const { width } = Dimensions.get('window');
+
+Dimensions.get('window');
 
 const WelcomePage = () => {
     return (
-        <View style={styles.container}>
-            {/* Sfondo con cerchi sovrapposti */}
-            <View style={styles.shapesWrapper}>
-                <View style={styles.greenCircle} />
-                <View style={styles.pinkCircle} />
-                <View style={styles.redCircle} />
-                <Text style={styles.welcomeText}>Hi!</Text>
-            </View>
+       <LayoutWrapper> 
+            <View style={styles.container}>
+                {/* Sfondo con cerchi sovrapposti */}
+                <View style={styles.shapesWrapper}>
+                    <View style={styles.greenCircle} />
+                    <View style={styles.pinkCircle} />
+                    <View style={styles.redCircle} />
+                    <Text style={styles.welcomeText}>Hi!</Text>
+                </View>
 
-            {/* Pulsanti */}
-            <View style={styles.buttonsContainer}>
-                <Link href="/login" asChild>
-                    <Pressable style={styles.button}>
-                        <Text style={styles.buttonText}>Login</Text>
-                        <Text style={styles.arrow}>➜</Text>
-                    </Pressable>
-                </Link>
+                {/* Pulsanti */}
+                <View style={styles.buttonsContainer}>
+                    <Link href="/login" asChild>
+                        <Pressable style={styles.button}>
+                            <Text style={styles.buttonText}>Login</Text>
+                            <Text style={styles.arrow}>➜</Text>
+                        </Pressable>
+                    </Link>
 
-                <Link href="/signup" asChild>
-                    <Pressable style={styles.button}>
-                        <Text style={styles.buttonText}>New Account</Text>
-                        <Text style={styles.arrow}>➜</Text>
-                    </Pressable>
-                </Link>
+                    <Link href="/signup" asChild>
+                        <Pressable style={styles.button}>
+                            <Text style={styles.buttonText}>New Account</Text>
+                            <Text style={styles.arrow}>➜</Text>
+                        </Pressable>
+                    </Link>
+                </View>
             </View>
-        </View>
+        </LayoutWrapper>
     );
 };
 
@@ -119,3 +123,4 @@ const styles = StyleSheet.create({
         marginLeft: 10,
     },
 });
+

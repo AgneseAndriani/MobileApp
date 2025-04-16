@@ -1,50 +1,99 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Platform, View, Text, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
+import BottomNavbar from '@/components/navigation/BottomNavbar';
+import LayoutWrapper from '@/components/LayoutWrapper';
 
-export default function HomeScreen() {
-  const router = useRouter();
+
+export default function HomeWebMapScreen() {
+  const [locationUrl, setLocationUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}&z=15&output=embed`;
+            setLocationUrl(mapsUrl);
+          },
+          (err) => {
+            setError('Impossibile ottenere la posizione.');
+            console.error('Errore geolocalizzazione:', err);
+          }
+        );
+      } else {
+        setError('Geolocalizzazione non supportata dal browser.');
+      }
+    }
+  }, []);
+
+  if (Platform.OS !== 'web') {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.message}>La mappa è disponibile solo su web.</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.message}>{error}</Text>
+      </View>
+    );
+  }
+
+  if (!locationUrl) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#5D9C3F" />
+        <Text style={styles.message}>Sto cercando la tua posizione...</Text>
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>🏠 Benvenuto nella Home!</Text>
-      <Text style={styles.subtitle}>Hai effettuato l’accesso con successo.</Text>
+    <LayoutWrapper>
+      <View style={styles.fullscreen}>
+        <iframe
+          src={locationUrl}
+          width="100%"
+          height="100%"
+          loading="lazy"
+          style={styles.iframe}
+        ></iframe>
+        <BottomNavbar />
+      </View>
+    </LayoutWrapper>
 
-      <Pressable style={styles.button} onPress={() => router.push('/')}>
-        <Text style={styles.buttonText}>Torna alla Login</Text>
-      </Pressable>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  fullscreen: {
+    flex: 1,
+  position: 'relative',
+  width: '100%', // ✅ importante: no Dimensions qui
+  height: '100%',
+  },
+  iframe: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+  },
+  
+  centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#E7F2E8',
   },
-  title: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#5D9C3F',
-  },
-  subtitle: {
-    fontSize: 18,
-    color: 'gray',
-    marginVertical: 10,
-  },
-  button: {
-    marginTop: 20,
-    backgroundColor: '#5D9C3F',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+  message: {
     fontSize: 16,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    marginTop: 10,
   },
 });

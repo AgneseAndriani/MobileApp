@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import type { Href } from 'expo-router';
+import { useState } from 'react';
+import LayoutWrapper from '@/components/LayoutWrapper';
+
 
 
 const LoginScreen = () => {
@@ -14,7 +16,6 @@ const LoginScreen = () => {
 
     const handleLogin = async () => {
         try {
-            // 🔗 Chiamata al tuo server backend (personalizzala)
             const response = await fetch('http://127.0.0.1:5000/login', {
                 method: 'POST',
                 headers: {
@@ -39,50 +40,52 @@ const LoginScreen = () => {
     };
 
     return (
-        <View style={styles.container}>
-            {/* Sfondo grafico */}
-            <View style={styles.header}>
-                <View style={styles.redShape} />
-                <View style={styles.pinkShape} />
-                <View style={styles.greenShape}>
-                    <Text style={styles.title}>Welcome back!</Text>
-                    <Text style={styles.subtitle}>Enter your details</Text>
+        <LayoutWrapper>
+            <View style={styles.container}>
+                {/* Sfondo grafico */}
+                <View style={styles.header}>
+                    <View style={styles.redShape} />
+                    <View style={styles.pinkShape} />
+                    <View style={styles.greenShape}>
+                        <Text style={styles.title}>Welcome back!</Text>
+                        <Text style={styles.subtitle}>Enter your details</Text>
+                    </View>
                 </View>
-            </View>
 
-            {/* Form */}
-            <View style={styles.form}>
-                <Text style={styles.label}>Username or E-mail Address</Text>
-                <TextInput
-                    style={styles.input}
-                    placeholder="email@example.com"
-                    value={email}
-                    onChangeText={setEmail}
-                />
-
-                <Text style={styles.label}>Password</Text>
-                <View style={styles.passwordWrapper}>
+                {/* Form */}
+                <View style={styles.form}>
+                    <Text style={styles.label}>Username or E-mail Address</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="••••••••"
-                        secureTextEntry={!showPassword}
-                        value={password}
-                        onChangeText={setPassword}
+                        placeholder="email@example.com"
+                        value={email}
+                        onChangeText={setEmail}
                     />
-                    <Pressable onPress={() => setShowPassword(prev => !prev)} style={styles.eyeIcon}>
-                        <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color="gray" />
+
+                    <Text style={styles.label}>Password</Text>
+                    <View style={styles.passwordWrapper}>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="••••••••"
+                            secureTextEntry={!showPassword}
+                            value={password}
+                            onChangeText={setPassword}
+                        />
+                        <Pressable onPress={() => setShowPassword(prev => !prev)} style={styles.eyeIcon}>
+                            <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color="gray" />
+                        </Pressable>
+                    </View>
+
+                    <Pressable style={styles.nextButton} onPress={handleLogin}>
+                        <Text style={styles.nextButtonText}>Next</Text>
+                    </Pressable>
+
+                    <Pressable style={styles.backButton} onPress={() => router.back()}>
+                        <Ionicons name="arrow-back" size={28} color="#5D9C3F" />
                     </Pressable>
                 </View>
-
-                <Pressable style={styles.nextButton} onPress={handleLogin}>
-                    <Text style={styles.nextButtonText}>Next</Text>
-                </Pressable>
-
-                <Pressable style={styles.backButton} onPress={() => router.back()}>
-                    <Ionicons name="arrow-back" size={28} color="#5D9C3F" />
-                </Pressable>
             </View>
-        </View>
+        </LayoutWrapper>
     );
 };
 

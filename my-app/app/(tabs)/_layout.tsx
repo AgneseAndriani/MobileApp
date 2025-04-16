@@ -1,30 +1,9 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
+import { Slot } from "expo-router";
 
-import { TabBarIcon } from '@/components/navigation/TabBarIcon';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+export const options = {
+  headerShown: false,
+};
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
-  return (
-      <Tabs
-          screenOptions={{
-            tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-            tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].tint,
-            headerShown: false,
-            // headerTitleAlign: "center",
-          }}>
-        <Tabs.Screen
-            name="index"
-            options={{
-              title: 'Home',
-              tabBarIcon: ({ color, focused }) => (
-                  <TabBarIcon name={focused ? 'home' : 'home-outline'} color={color} />
-              ),
-            }}
-        />
-      </Tabs>
-  );
+export default function Layout() {
+  return <Slot />;
 }
