@@ -12,10 +12,10 @@ export default function BottomNavbar() {
       </View>
 
       <View style={styles.navbar}>
-        <NavButton onPress={() => router.push('/home' as Href)} source={require('../../assets/images/home.jpg')} />
-        <NavButton onPress={() => router.push('/places' as Href)} source={require('../../assets/images/places.jpg')} />
-        <NavButton onPress={() => router.push('/goals' as Href)} source={require('../../assets/images/trophy.jpg')} />
-        <NavButton onPress={() => router.push('/profile' as Href)} source={require('../../assets/images/profile.jpg')} />
+        <NavButton onPress={() => router.push('/home')} source={require('@/assets/images/home_active.jpg')} />
+        <NavButton onPress={() => router.push('/places')} source={require('@/assets/images/places.jpg')} />
+        <NavButton onPress={() => router.push('/goals')} source={require('@/assets/images/trophy.jpg')} />
+        <NavButton onPress={() => router.push('/profile')} source={require('@/assets/images/profile.jpg')} />
       </View>
     </View>
   );

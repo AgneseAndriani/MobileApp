@@ -38,7 +38,7 @@ export default function LoginScreen() {
       else alert('Credenziali non valide');
     } catch (e) {
       console.error(e);
-      alert('Errore di connessione');
+      alert('Please fill in all required fields');
     }
   }
 

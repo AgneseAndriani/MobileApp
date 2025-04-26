@@ -51,8 +51,7 @@ const RegisterScreen = () => {
       });
       const data = await response.json();
       if (data && data.id) {
-        alert('Registrazione avvenuta con successo!');
-        router.push('/home');
+        router.push('/create');
       } else {
         alert('Registrazione fallita');
       }
