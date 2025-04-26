@@ -1,102 +1,220 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { StyleSheet, Image, Platform } from 'react-native';
+import React, { useState } from 'react';
+import {
+  SafeAreaView,
+  ScrollView,
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  Pressable,
+  ImageBackground,
+} from 'react-native';
+import { useRouter } from 'expo-router'; 
+import { Ionicons } from '@expo/vector-icons';
+import LayoutWrapper from '@/components/LayoutWrapper';
+import {
+  widthPercentageToDP as wp,
+  heightPercentageToDP as hp,
+} from 'react-native-responsive-screen';
 
-import { Collapsible } from '@/components/Collapsible';
-import { ExternalLink } from '@/components/ExternalLink';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+const RegisterScreen = () => {
+  const router = useRouter(); 
 
-export default function TabTwoScreen() {
-    return (
-        <ParallaxScrollView
-            headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-            headerImage={<Ionicons size={310} name="code-slash" style={styles.headerImage} />}>
-            <ThemedView style={styles.titleContainer}>
-                <ThemedText type="title">Explore</ThemedText>
-            </ThemedView>
-            <ThemedText>This app includes example code to help you get started.</ThemedText>
-            <Collapsible title="File-based routing">
-                <ThemedText>
-                    This app has two screens:{' '}
-                    <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-                    <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-                </ThemedText>
-                <ThemedText>
-                    The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-                    sets up the tab navigator.
-                </ThemedText>
-                <ExternalLink href="https://docs.expo.dev/router/introduction">
-                    <ThemedText type="link">Learn more</ThemedText>
-                </ExternalLink>
-            </Collapsible>
-            <Collapsible title="Android, iOS, and web support">
-                <ThemedText>
-                    You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-                    <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-                </ThemedText>
-            </Collapsible>
-            <Collapsible title="Images">
-                <ThemedText>
-                    For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-                    <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-                    different screen densities
-                </ThemedText>
-                <Image source={require('@/assets/images/react-logo.png')} style={{ alignSelf: 'center' }} />
-                <ExternalLink href="https://reactnative.dev/docs/images">
-                    <ThemedText type="link">Learn more</ThemedText>
-                </ExternalLink>
-            </Collapsible>
-            <Collapsible title="Custom fonts">
-                <ThemedText>
-                    Open <ThemedText type="defaultSemiBold">app/_layout.tsx</ThemedText> to see how to load{' '}
-                    <ThemedText style={{ fontFamily: 'SpaceMono' }}>
-                        custom fonts such as this one.
-                    </ThemedText>
-                </ThemedText>
-                <ExternalLink href="https://docs.expo.dev/versions/latest/sdk/font">
-                    <ThemedText type="link">Learn more</ThemedText>
-                </ExternalLink>
-            </Collapsible>
-            <Collapsible title="Light and dark mode components">
-                <ThemedText>
-                    This template has light and dark mode support. The{' '}
-                    <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-                    what the user's current color scheme is, and so you can adjust UI colors accordingly.
-                </ThemedText>
-                <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-                    <ThemedText type="link">Learn more</ThemedText>
-                </ExternalLink>
-            </Collapsible>
-            <Collapsible title="Animations">
-                <ThemedText>
-                    This template includes an example of an animated component. The{' '}
-                    <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-                    the powerful <ThemedText type="defaultSemiBold">react-native-reanimated</ThemedText> library
-                    to create a waving hand animation.
-                </ThemedText>
-                {Platform.select({
-                    ios: (
-                        <ThemedText>
-                            The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-                            component provides a parallax effect for the header image.
-                        </ThemedText>
-                    ),
-                })}
-            </Collapsible>
-        </ParallaxScrollView>
-    );
-}
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const total_km = 0;
+  const total_calories = 0;
+  const total_steps = 0;
+
+  const handleRegister = async () => {
+    if (!email || !username) {
+      alert('Please fill in all required fields');
+      return;
+    }
+    if (password !== confirmPassword) {
+      alert('Passwords do not match');
+      return;
+    }
+    try {
+      const response = await fetch('http://127.0.0.1:5000/add-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user: { name, username, email, password, total_km, total_calories, total_steps }
+        }),
+      });
+      const data = await response.json();
+      if (data && data.id) {
+        alert('Registrazione avvenuta con successo!');
+        router.push('/home');
+      } else {
+        alert('Registrazione fallita');
+      }
+    } catch (error) {
+      console.error('Errore durante la registrazione:', error);
+      alert('Errore di rete');
+    }
+  };
+
+  return (
+    <LayoutWrapper>
+      <SafeAreaView style={styles.container}>
+        <ScrollView keyboardShouldPersistTaps="handled">
+          {/* Header con immagine */}
+          <ImageBackground
+            source={require('@/assets/images/shapes.png')}
+            style={styles.header}
+            imageStyle={styles.headerImage}
+          >
+            <View style={styles.overlay}>
+              <Text style={styles.title}>Welcome!</Text>
+              <Text style={styles.subtitle}>Enter your details</Text>
+            </View>
+          </ImageBackground>
+
+          {/* Form sotto l'immagine */}
+          <View style={styles.formWrapper}>
+            <Text style={styles.label}>E-mail</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="email@example.com"
+              placeholderTextColor="#999"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Your Name"
+              placeholderTextColor="#999"
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+            />
+
+            <Text style={styles.label}>Username</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="username"
+              placeholderTextColor="#999"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+            />
+
+            <Text style={styles.label}>Password</Text>
+            <View style={styles.passwordWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                placeholderTextColor="#999"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <Pressable onPress={() => setShowPassword(p => !p)} style={styles.eyeIcon}>
+                <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={wp('5%')} color="#666" />
+              </Pressable>
+            </View>
+
+            <Text style={styles.label}>Confirm Password</Text>
+            <View style={styles.passwordWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                placeholderTextColor="#999"
+                secureTextEntry={!showConfirm}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+              />
+              <Pressable onPress={() => setShowConfirm(p => !p)} style={styles.eyeIcon}>
+                <Ionicons name={showConfirm ? 'eye-off' : 'eye'} size={wp('5%')} color="#666" />
+              </Pressable>
+            </View>
+
+            <Pressable style={styles.nextButton} onPress={handleRegister}>
+              <Text style={styles.nextText}>Next</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+
+        {/* Bottone Indietro */}
+        <Pressable style={styles.backButton} onPress={() => router.push('/')}>
+          <Ionicons name="arrow-back" size={wp('6%')} color="white" />
+        </Pressable>
+      </SafeAreaView>
+    </LayoutWrapper>
+  );
+};
 
 const styles = StyleSheet.create({
-    headerImage: {
-        color: '#808080',
-        bottom: -90,
-        left: -35,
-        position: 'absolute',
-    },
-    titleContainer: {
-        flexDirection: 'row',
-        gap: 8,
-    },
+  container: { flex: 1, backgroundColor: '#fff' },
+  header: {
+    width: '100%',
+    height: hp('50%'),
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  headerImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  overlay: {
+    position: 'absolute',
+    top: hp('15%'),
+    width: '100%',
+    alignItems: 'center',
+  },
+  title: { color: '#fff', fontSize: wp('8%'), fontWeight: '700' },
+  subtitle: { color: '#fff', fontSize: wp('4.5%'), marginTop: hp('1%') },
+  formWrapper: {
+    width: wp('80%'),
+    alignSelf: 'center',
+    marginVertical: hp('5%'),    
+  },
+  label: { color: '#000', fontSize: wp('4%'), marginBottom: hp('0.5%') },
+  input: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#5D9C3F',
+    paddingVertical: hp('1%'),
+    fontSize: wp('4%'),
+    color: '#333',
+    marginBottom: hp('2%'),
+  },
+  passwordWrapper: { position: 'relative' },
+  eyeIcon: { position: 'absolute', right: wp('2%'), top: hp('1.8%') },
+  nextButton: {
+    backgroundColor: '#5D9C3F',
+    paddingVertical: hp('1.2%'),
+    width: wp('30%'),
+    alignSelf: 'flex-end',
+    borderRadius: wp('3%'),
+    alignItems: 'center',
+    marginTop: hp('2%'),
+  },
+  nextText: { color: '#fff', fontSize: wp('4%'), fontWeight: '600' },
+  backButton: {
+    position: 'absolute',
+    bottom: hp('3%'),
+    alignSelf: 'center',
+    width: wp('10%'),
+    height: wp('10%'),
+    backgroundColor: '#5D9C3F',
+    borderRadius: wp('5%'),
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
+
+export default RegisterScreen;

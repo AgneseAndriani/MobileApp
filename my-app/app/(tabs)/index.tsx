@@ -1,20 +1,21 @@
-import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Dimensions, Image } from 'react-native';
 import React from 'react';
 import { Link } from 'expo-router';
 import LayoutWrapper from '@/components/LayoutWrapper';
 
-
-Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const WelcomePage = () => {
     return (
-       <LayoutWrapper> 
+        <LayoutWrapper>
             <View style={styles.container}>
-                {/* Sfondo con cerchi sovrapposti */}
-                <View style={styles.shapesWrapper}>
-                    <View style={styles.greenCircle} />
-                    <View style={styles.pinkCircle} />
-                    <View style={styles.redCircle} />
+                {/* Immagine */}
+                <View style={styles.imageWrapper}>
+                    <Image 
+                        source={require('@/assets/images/hi.png')} 
+                        style={styles.image} 
+                        resizeMode="cover" 
+                    />
                     <Text style={styles.welcomeText}>Hi!</Text>
                 </View>
 
@@ -45,61 +46,29 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#fff',
-        justifyContent: 'flex-start',
     },
-    background: {
+    imageWrapper: {
+        width: '100%',
         height: '50%',
-        justifyContent: 'flex-start',
-        alignItems: 'flex-start',
-        overflow: 'visible',
+        overflow: 'hidden',
+        justifyContent: 'center',
+        alignItems: 'center',
         position: 'relative',
     },
-    shapesWrapper: {
-        height: '55%',
-        justifyContent: 'center',
-        alignItems: 'flex-start',
-        overflow: 'hidden',
-    },
-    greenCircle: {
-        position: 'absolute',
-        width: 500,
-        height: 500,
-        borderRadius: 500,
-        backgroundColor: '#5D9C3F',
-        top: -80,
-        left: -150,
-        zIndex: 3,
-    },
-    pinkCircle: {
-        position: 'absolute',
-        width: 460,
-        height: 520,
-        borderRadius: 400,
-        backgroundColor: '#F1B2CB',
-        top: -60,
-        left: -80,
-        zIndex: 2,
-    },
-    redCircle: {
-        position: 'absolute',
-        width: 400,
-        height: 400,
-        borderRadius: 200,
-        backgroundColor: '#DB2763',
-        top: -40,
-        right: -100,
-        zIndex: 1,
+    image: {
+        width: '100%',
+        height: '100%',
     },
     welcomeText: {
-        color: 'white',
+        position: 'absolute',
+        color: '#fff',
         fontSize: 70,
         fontWeight: 'bold',
-        zIndex: 4,
-        marginTop: 120,
-        marginLeft: 100,
+        textAlign: 'center',
+        left: '25%'
     },
     buttonsContainer: {
-        marginTop: 100,
+        marginTop: 40,
         paddingHorizontal: 30,
         gap: 20,
     },
@@ -123,4 +92,3 @@ const styles = StyleSheet.create({
         marginLeft: 10,
     },
 });
-
