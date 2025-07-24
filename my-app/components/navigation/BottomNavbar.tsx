@@ -1,19 +1,51 @@
+// components/BottomNavbar.tsx
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
-import { useRouter, type Href } from 'expo-router';
+import { useRouter } from 'expo-router';
 
-export default function BottomNavbar() {
+type Props = {
+  state: 'start' | 'stop' | 'continue';
+  onPress: () => void;
+};
+
+export default function BottomNavbar({ state, onPress }: Props) {
   const router = useRouter();
+
+  const getBadgeStyle = () => {
+    switch (state) {
+      case 'start':
+        return { backgroundColor: '#5D9C3F' }; // verde
+      case 'stop':
+      case 'continue':
+        return { backgroundColor: '#D84171' }; // rosso/fucsia
+      default:
+        return { backgroundColor: '#ccc' };
+    }
+  };
+
+  const getBadgeText = () => {
+    switch (state) {
+      case 'start':
+        return 'Start your story!';
+      case 'stop':
+        return 'Stop';
+      case 'continue':
+        return 'Continue';
+    }
+  };
 
   return (
     <View style={styles.container}>
-      <View style={styles.badge}>
-        <Text style={styles.badgeText}>Start your story!</Text>
-      </View>
+      <Pressable
+        style={[styles.badge, getBadgeStyle()]}
+        onPress={onPress}
+      >
+        <Text style={styles.badgeText}>{getBadgeText()}</Text>
+      </Pressable>
 
       <View style={styles.navbar}>
         <NavButton onPress={() => router.push('/home')} source={require('@/assets/images/home_active.jpg')} />
-        <NavButton onPress={() => router.push('/places')} source={require('@/assets/images/places.jpg')} />
+        <NavButton onPress={() => router.push('/points')} source={require('@/assets/images/points.jpg')} />
         <NavButton onPress={() => router.push('/goals')} source={require('@/assets/images/trophy.jpg')} />
         <NavButton onPress={() => router.push('/profile')} source={require('@/assets/images/profile.jpg')} />
       </View>
@@ -35,10 +67,9 @@ const styles = StyleSheet.create({
     bottom: 25,
     alignSelf: 'center',
     alignItems: 'center',
-    zIndex: 10,
+    zIndex: 20,
   },
   badge: {
-    backgroundColor: '#5D9C3F',
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 20,

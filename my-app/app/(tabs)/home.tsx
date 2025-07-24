@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, View, Text, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
+import { Platform, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import BottomNavbar from '@/components/navigation/BottomNavbar';
 import LayoutWrapper from '@/components/LayoutWrapper';
+import { router } from 'expo-router';
 
 
 export default function HomeWebMapScreen() {
@@ -55,7 +56,7 @@ export default function HomeWebMapScreen() {
 
   return (
     <LayoutWrapper>
-      <View style={styles.fullscreen}>
+        <View style={styles.fullscreen}>
         <iframe
           src={locationUrl}
           width="100%"
@@ -63,8 +64,11 @@ export default function HomeWebMapScreen() {
           loading="lazy"
           style={styles.iframe}
         ></iframe>
-        <BottomNavbar />
-      </View>
+        </View>
+      <BottomNavbar
+        state="start"
+        onPress={() => router.push('/time')}
+      />
     </LayoutWrapper>
 
   );
@@ -76,6 +80,7 @@ const styles = StyleSheet.create({
   position: 'relative',
   width: '100%', 
   height: '100%',
+  zIndex: 0,
   },
   iframe: {
     position: 'absolute',
@@ -83,6 +88,8 @@ const styles = StyleSheet.create({
     left: 0,
     width: '100%',
     height: '100%',
+    zIndex: 0,
+    pointerEvents: 'none',
   },
   
   centered: {
