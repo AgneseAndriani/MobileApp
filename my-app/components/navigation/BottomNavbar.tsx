@@ -1,7 +1,7 @@
 // components/BottomNavbar.tsx
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 
 type Props = {
   state: 'start' | 'stop' | 'continue';
@@ -10,14 +10,15 @@ type Props = {
 
 export default function BottomNavbar({ state, onPress }: Props) {
   const router = useRouter();
+  const pathname = usePathname(); // 👈 rileva la pagina attuale
 
   const getBadgeStyle = () => {
     switch (state) {
       case 'start':
-        return { backgroundColor: '#5D9C3F' }; // verde
+        return { backgroundColor: '#5D9C3F' };
       case 'stop':
       case 'continue':
-        return { backgroundColor: '#D84171' }; // rosso/fucsia
+        return { backgroundColor: '#D84171' };
       default:
         return { backgroundColor: '#ccc' };
     }
@@ -36,27 +37,71 @@ export default function BottomNavbar({ state, onPress }: Props) {
 
   return (
     <View style={styles.container}>
-      <Pressable
-        style={[styles.badge, getBadgeStyle()]}
-        onPress={onPress}
-      >
+      <Pressable style={[styles.badge, getBadgeStyle()]} onPress={onPress}>
         <Text style={styles.badgeText}>{getBadgeText()}</Text>
       </Pressable>
 
       <View style={styles.navbar}>
-        <NavButton onPress={() => router.push('/home')} source={require('@/assets/images/home_active.jpg')} />
-        <NavButton onPress={() => router.push('/points')} source={require('@/assets/images/points.jpg')} />
-        <NavButton onPress={() => router.push('/goals')} source={require('@/assets/images/trophy.jpg')} />
-        <NavButton onPress={() => router.push('/profile')} source={require('@/assets/images/profile.jpg')} />
+        <NavButton
+          active={pathname === '/home' || pathname === '/story'}
+          defaultSrc={require('@/assets/images/home.png')}
+          activeSrc={require('@/assets/images/home_pressed.jpg')}
+          onPress={() => {
+            try {
+              const story = sessionStorage.getItem('activeStory');
+              const parsed = story ? JSON.parse(story) : null;
+
+              if (parsed && Array.isArray(parsed.points) && parsed.points.length > 0) {
+                router.push('/story');
+              } else {
+                router.push('/home');
+              }
+            } catch (err) {
+              console.error('Errore nella lettura della storia:', err);
+              router.push('/home');
+            }
+          }}
+        />
+
+        <NavButton
+          active={pathname === '/points'}
+          defaultSrc={require('@/assets/images/points.jpg')}
+          activeSrc={require('@/assets/images/points_pressed.png')}
+          onPress={() => router.push('/points')}
+        />
+
+        <NavButton
+          active={pathname === '/goals'}
+          defaultSrc={require('@/assets/images/trophy.jpg')}
+          activeSrc={require('@/assets/images/trophy_pressed.png')}
+          onPress={() => router.push('/goals')}
+        />
+
+        <NavButton
+          active={pathname === '/profile'}
+          defaultSrc={require('@/assets/images/profile.jpg')}
+          activeSrc={require('@/assets/images/profile_pressed.png')}
+          onPress={() => router.push('/profile')}
+        />
       </View>
     </View>
   );
 }
 
-function NavButton({ onPress, source }: { onPress: () => void; source: any }) {
+function NavButton({
+  onPress,
+  defaultSrc,
+  activeSrc,
+  active,
+}: {
+  onPress: () => void;
+  defaultSrc: any;
+  activeSrc: any;
+  active: boolean;
+}) {
   return (
     <Pressable onPress={onPress} style={styles.button}>
-      <Image source={source} style={styles.icon} />
+      <Image source={active ? activeSrc : defaultSrc} style={styles.icon} />
     </Pressable>
   );
 }

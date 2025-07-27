@@ -17,13 +17,45 @@ const windowHeight = Dimensions.get('window').height;
 const windowWidth = Dimensions.get('window').width;
 
 export default function StoryMapScreen() {
-  const { story } = useLocalSearchParams();
-  const parsedStory = typeof story === 'string' ? JSON.parse(story) : story;
+const { story, points, questions } = useLocalSearchParams();
+
+const [parsedStory, setParsedStory] = useState<any>(null);
+const [parsedPoints, setParsedPoints] = useState<any[]>([]);
+const [parsedQuestions, setParsedQuestions] = useState<any[]>([]);
+
+useEffect(() => {
+  if (story && points && questions) {
+    // Se arrivano da URL
+    setParsedStory(typeof story === 'string' ? JSON.parse(story) : story);
+    setParsedPoints(typeof points === 'string' ? JSON.parse(points) : []);
+    setParsedQuestions(typeof questions === 'string' ? JSON.parse(questions) : []);
+  } else {
+    // Fallback a sessionStorage
+    const stored = sessionStorage.getItem('activeStory');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setParsedStory(parsed.story ?? null);
+        setParsedPoints(parsed.points ?? []);
+        setParsedQuestions(parsed.questions ?? []);
+      } catch (err) {
+        console.error('Errore nel parsing della storia:', err);
+      }
+    }
+  }
+}, [story, points, questions]);
+
 
   const [locationUrl, setLocationUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(true);
   const [storyState, setStoryState] = useState<'stop' | 'continue'>('stop');
+  const [isAudioPlaying, setIsAudioPlaying] = useState(true);
+
+  const toggleAudio = () => {
+    setIsAudioPlaying((prev) => !prev);
+  };
+
 
   const handleStoryStateToggle = () => {
     setStoryState((prev) => (prev === 'stop' ? 'continue' : 'stop'));
@@ -105,6 +137,16 @@ export default function StoryMapScreen() {
             </Text>
           </ScrollView>
         )}
+
+        <View style={styles.audioControls}>
+        <Pressable onPress={toggleAudio} style={[styles.audioButton, isAudioPlaying && styles.active]}>
+          <Ionicons name="volume-high" size={20} color={isAudioPlaying ? 'white' : '#666'} />
+        </Pressable>
+        <Pressable onPress={toggleAudio} style={[styles.audioButton, !isAudioPlaying && styles.active]}>
+          <Ionicons name="volume-mute" size={20} color={!isAudioPlaying ? 'white' : '#666'} />
+        </Pressable>
+      </View>
+
       </View>
       <BottomNavbar
         state={storyState}
@@ -193,4 +235,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginTop: 10,
   },
+  audioControls: {
+  position: 'absolute',
+  top: 6,
+  right: 6,
+  flexDirection: 'row',
+  gap: 8,
+  zIndex: 20,
+},
+audioButton: {
+  width: 32,
+  height: 32,
+  borderRadius: 16,
+  backgroundColor: '#eee',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+active: {
+  backgroundColor: '#D84171',
+},
+
 });

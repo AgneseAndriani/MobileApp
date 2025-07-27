@@ -62,6 +62,7 @@ export default function ThemesScreen() {
           params: {
             story: JSON.stringify(data.story),
             points: JSON.stringify(data.points),
+            questions: JSON.stringify(data.questions),
           },
         });
       } else {
