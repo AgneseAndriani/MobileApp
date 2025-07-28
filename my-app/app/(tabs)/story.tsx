@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
   },
   exitButtonOutside: {
     position: 'absolute',
-    top: windowHeight * 0.5 + 50, // ↓ Regola se serve
+    top: windowHeight * 0.5 + 50, 
     left: '50%',
     transform: [{ translateX: -60 }],
     backgroundColor: '#5D9C3F',

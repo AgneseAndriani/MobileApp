@@ -52,7 +52,7 @@ export default function PointsScreen() {
             Start your story to unlock your objectives!
           </Text>
         </View>
-        <BottomNavbar state="stop" onPress={() => {}} />
+        <BottomNavbar state="start" onPress={() => {}} />
       </ImageBackground>
     );
   }

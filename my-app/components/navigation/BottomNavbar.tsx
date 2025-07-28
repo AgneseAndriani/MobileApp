@@ -10,7 +10,7 @@ type Props = {
 
 export default function BottomNavbar({ state, onPress }: Props) {
   const router = useRouter();
-  const pathname = usePathname(); // 👈 rileva la pagina attuale
+  const pathname = usePathname(); // pagina attuale
 
   const getBadgeStyle = () => {
     switch (state) {
