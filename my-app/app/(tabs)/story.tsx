@@ -9,7 +9,7 @@ import {
   ScrollView,
   Pressable,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNavbar from '@/components/navigation/BottomNavbar';
 
@@ -17,51 +17,49 @@ const windowHeight = Dimensions.get('window').height;
 const windowWidth = Dimensions.get('window').width;
 
 export default function StoryMapScreen() {
-const { story, points, questions } = useLocalSearchParams();
+  const { story, points, questions } = useLocalSearchParams();
+  const [parsedStory, setParsedStory] = useState<any>(null);
+  const [parsedPoints, setParsedPoints] = useState<any[]>([]);
+  const [parsedQuestions, setParsedQuestions] = useState<any[]>([]);
+  const router = useRouter();
 
-const [parsedStory, setParsedStory] = useState<any>(null);
-const [parsedPoints, setParsedPoints] = useState<any[]>([]);
-const [parsedQuestions, setParsedQuestions] = useState<any[]>([]);
+  const handleExit = () => {
+    sessionStorage.removeItem('activeStory');
+    router.push('/home');
+  };
 
-useEffect(() => {
-  // Se arrivano via URL (prima apertura)
-  if (story && points && questions) {
-    const parsedStory = typeof story === 'string' ? JSON.parse(story) : story;
-    const parsedPoints = typeof points === 'string' ? JSON.parse(points) : [];
-    const parsedQuestions = typeof questions === 'string' ? JSON.parse(questions) : [];
+  useEffect(() => {
+    if (story && points && questions) {
+      const parsedStory = typeof story === 'string' ? JSON.parse(story) : story;
+      const parsedPoints = typeof points === 'string' ? JSON.parse(points) : [];
+      const parsedQuestions = typeof questions === 'string' ? JSON.parse(questions) : [];
 
-    setParsedStory(parsedStory);
-    setParsedPoints(parsedPoints);
-    setParsedQuestions(parsedQuestions);
+      setParsedStory(parsedStory);
+      setParsedPoints(parsedPoints);
+      setParsedQuestions(parsedQuestions);
 
-    // Salva tutto insieme
-    const completeStory = {
-      ...parsedStory,
-      points: parsedPoints,
-      questions: parsedQuestions,
-    };
-    sessionStorage.setItem('activeStory', JSON.stringify(completeStory));
-  }
-
-  // Se NON ci sono parametri (ritorno da /points, /places, ecc.)
-  else {
-    const stored = sessionStorage.getItem('activeStory');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setParsedStory(parsed); 
-        setParsedPoints(parsed.points ?? []);
-        setParsedQuestions(parsed.questions ?? []);
-      } catch (err) {
-        console.error('Errore nel parsing di activeStory:', err);
-      }
+      const completeStory = {
+        ...parsedStory,
+        points: parsedPoints,
+        questions: parsedQuestions,
+      };
+      sessionStorage.setItem('activeStory', JSON.stringify(completeStory));
     } else {
-      console.warn('activeStory non trovato nel sessionStorage');
+      const stored = sessionStorage.getItem('activeStory');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setParsedStory(parsed);
+          setParsedPoints(parsed.points ?? []);
+          setParsedQuestions(parsed.questions ?? []);
+        } catch (err) {
+          console.error('Errore nel parsing di activeStory:', err);
+        }
+      } else {
+        console.warn('activeStory non trovato nel sessionStorage');
+      }
     }
-  }
-}, [story, points, questions]);
-
-
+  }, [story, points, questions]);
 
   const [locationUrl, setLocationUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,11 +71,9 @@ useEffect(() => {
     setIsAudioPlaying((prev) => !prev);
   };
 
-
   const handleStoryStateToggle = () => {
     setStoryState((prev) => (prev === 'stop' ? 'continue' : 'stop'));
   };
-
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -149,27 +145,37 @@ useEffect(() => {
             <Text style={styles.header}>Here is your story!</Text>
             <Text style={styles.title}>{parsedStory.title}</Text>
             <Text style={styles.intro}>{parsedStory.intro}</Text>
-            <Text style={styles.theme}>
             <Text style={styles.theme}>{parsedStory.theme}</Text>
-            </Text>
           </ScrollView>
         )}
 
         <View style={styles.audioControls}>
-        <Pressable onPress={toggleAudio} style={[styles.audioButton, isAudioPlaying && styles.active]}>
-          <Ionicons name="volume-high" size={20} color={isAudioPlaying ? 'white' : '#666'} />
-        </Pressable>
-        <Pressable onPress={toggleAudio} style={[styles.audioButton, !isAudioPlaying && styles.active]}>
-          <Ionicons name="volume-mute" size={20} color={!isAudioPlaying ? 'white' : '#666'} />
-        </Pressable>
+          <Pressable onPress={toggleAudio} style={[styles.audioButton, isAudioPlaying && styles.active]}>
+            <Ionicons name="volume-high" size={20} color={isAudioPlaying ? 'white' : '#666'} />
+          </Pressable>
+          <Pressable onPress={toggleAudio} style={[styles.audioButton, !isAudioPlaying && styles.active]}>
+            <Ionicons name="volume-mute" size={20} color={!isAudioPlaying ? 'white' : '#666'} />
+          </Pressable>
+        </View>
       </View>
 
-      </View>
+      <Pressable
+        onPress={handleExit}
+        style={[
+          styles.exitButtonOutside,
+          {
+            top: expanded ? windowHeight * 0.5 + 40 : 80, // si adatta allo stato
+          },
+        ]}
+      >
+        <Text style={styles.exitText}>Exit</Text>
+      </Pressable>
+
+
       <BottomNavbar
         state={storyState}
         onPress={handleStoryStateToggle}
       />
-
     </View>
   );
 }
@@ -253,23 +259,38 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   audioControls: {
-  position: 'absolute',
-  top: 6,
-  right: 6,
-  flexDirection: 'row',
-  gap: 8,
-  zIndex: 20,
-},
-audioButton: {
-  width: 32,
-  height: 32,
-  borderRadius: 16,
-  backgroundColor: '#eee',
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-active: {
-  backgroundColor: '#D84171',
-},
-
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    flexDirection: 'row',
+    gap: 8,
+    zIndex: 20,
+  },
+  audioButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#eee',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  active: {
+    backgroundColor: '#D84171',
+  },
+  exitButtonOutside: {
+    position: 'absolute',
+    top: windowHeight * 0.5 + 50, // ↓ Regola se serve
+    left: '50%',
+    transform: [{ translateX: -60 }],
+    backgroundColor: '#5D9C3F',
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    zIndex: 15,
+  },
+  exitText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
 });
