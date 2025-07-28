@@ -24,26 +24,43 @@ const [parsedPoints, setParsedPoints] = useState<any[]>([]);
 const [parsedQuestions, setParsedQuestions] = useState<any[]>([]);
 
 useEffect(() => {
+  // Se arrivano via URL (prima apertura)
   if (story && points && questions) {
-    // Se arrivano da URL
-    setParsedStory(typeof story === 'string' ? JSON.parse(story) : story);
-    setParsedPoints(typeof points === 'string' ? JSON.parse(points) : []);
-    setParsedQuestions(typeof questions === 'string' ? JSON.parse(questions) : []);
-  } else {
-    // Fallback a sessionStorage
+    const parsedStory = typeof story === 'string' ? JSON.parse(story) : story;
+    const parsedPoints = typeof points === 'string' ? JSON.parse(points) : [];
+    const parsedQuestions = typeof questions === 'string' ? JSON.parse(questions) : [];
+
+    setParsedStory(parsedStory);
+    setParsedPoints(parsedPoints);
+    setParsedQuestions(parsedQuestions);
+
+    // Salva tutto insieme
+    const completeStory = {
+      ...parsedStory,
+      points: parsedPoints,
+      questions: parsedQuestions,
+    };
+    sessionStorage.setItem('activeStory', JSON.stringify(completeStory));
+  }
+
+  // Se NON ci sono parametri (ritorno da /points, /places, ecc.)
+  else {
     const stored = sessionStorage.getItem('activeStory');
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        setParsedStory(parsed.story ?? null);
+        setParsedStory(parsed); 
         setParsedPoints(parsed.points ?? []);
         setParsedQuestions(parsed.questions ?? []);
       } catch (err) {
-        console.error('Errore nel parsing della storia:', err);
+        console.error('Errore nel parsing di activeStory:', err);
       }
+    } else {
+      console.warn('activeStory non trovato nel sessionStorage');
     }
   }
 }, [story, points, questions]);
+
 
 
   const [locationUrl, setLocationUrl] = useState<string | null>(null);
