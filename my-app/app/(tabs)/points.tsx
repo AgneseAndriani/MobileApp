@@ -1,128 +1,224 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ImageBackground,
   FlatList,
+  Dimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNavbar from '@/components/navigation/BottomNavbar';
 import { router } from 'expo-router';
+import { GoogleMap, useJsApiLoader } from '@react-google-maps/api';
+
+const windowHeight = Dimensions.get('window').height;
+
+function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371e3;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const x1 = toRad(lat1);
+  const x2 = toRad(lat2);
+  const x = toRad(lat2 - lat1);
+  const y = toRad(lon2 - lon1);
+  const a =
+    Math.sin(x / 2) ** 2 +
+    Math.cos(x1) * Math.cos(x2) * Math.sin(y / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 export default function PointsScreen() {
   const [storyStarted, setStoryStarted] = useState(false);
   const [points, setPoints] = useState<any[]>([]);
   const [questions, setQuestions] = useState<any[]>([]);
   const [selectedAnswers, setSelectedAnswers] = useState<{ [key: string]: number }>({});
+  const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [accuracy, setAccuracy] = useState<number>(50);
+
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const markerRef = useRef<google.maps.Marker | null>(null);
+  const circleRef = useRef<google.maps.Circle | null>(null);
+
+  const { isLoaded } = useJsApiLoader({
+    id: 'script-loader',
+    googleMapsApiKey: 'AIzaSyBjbQDjbaNPKzvwmJ3lfKYUGh2JXrVfg5s',
+    libraries: ['places'],
+  });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const stored = sessionStorage.getItem('activeStory');
       if (stored) {
         const parsed = JSON.parse(stored);
-        console.log('Questions:', parsed.questions);
-        setPoints(Array.isArray(parsed.points) ? parsed.points : []);
-        setQuestions(Array.isArray(parsed.questions) ? parsed.questions : []);
+        setPoints(parsed.points ?? []);
+        setQuestions(parsed.questions ?? []);
         setStoryStarted(true);
       }
     }
   }, []);
 
+  useEffect(() => {
+    if (Platform.OS === 'web' && 'geolocation' in navigator) {
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setAccuracy(pos.coords.accuracy);
+        },
+        (err) => console.error('Geo error:', err),
+        { enableHighAccuracy: true }
+      );
+      return () => navigator.geolocation.clearWatch(watchId);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (position && mapRef.current) {
+      if (!markerRef.current) {
+        markerRef.current = new window.google.maps.Marker({
+          position,
+          map: mapRef.current,
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: '#4285F4',
+            fillOpacity: 1,
+            strokeWeight: 2,
+            strokeColor: 'white',
+          },
+        });
+      } else {
+        markerRef.current.setPosition(position);
+      }
+
+      if (!circleRef.current) {
+        circleRef.current = new window.google.maps.Circle({
+          strokeColor: '#4285F4',
+          strokeOpacity: 0.5,
+          strokeWeight: 1,
+          fillColor: '#4285F4',
+          fillOpacity: 0.2,
+          map: mapRef.current,
+          center: position,
+          radius: accuracy,
+        });
+      } else {
+        circleRef.current.setCenter(position);
+        circleRef.current.setRadius(accuracy);
+      }
+
+      mapRef.current.setCenter(position);
+    }
+  }, [position, accuracy]);
+
   const handleSelectAnswer = (questionKey: string, answerIndex: number) => {
-    setSelectedAnswers((prev) => ({
-      ...prev,
-      [questionKey]: answerIndex,
-    }));
+    setSelectedAnswers((prev) => ({ ...prev, [questionKey]: answerIndex }));
   };
 
-  const handleStoryNavigation = () => {
-    router.push('/story');
+  const markPointAsCompleted = async (point: any) => {
+    try {
+      await fetch('/api/complete-point', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ story_id: point.story_id, point_id: point.point_id }),
+      });
+      setPoints((prev) => prev.map((p) => p.point_id === point.point_id ? { ...p, completed: 1 } : p));
+    } catch (err) {
+      console.error('Errore aggiornamento punto:', err);
+    }
   };
 
-  if (!storyStarted) {
+  const visiblePoints = (() => {
+    if (!position) return [];
+    const sorted = [...points].sort((a, b) => a.point_id - b.point_id);
+    const nextPoint = sorted.find((p) => p.completed !== 1);
+    if (!nextPoint) return [];
+    const distance = getDistance(position.lat, position.lng, Number(nextPoint.latitude), Number(nextPoint.longitude));
+    return distance <= 50 ? [nextPoint] : [];
+  })();
+
+  if (!isLoaded) {
     return (
-      <ImageBackground
-        source={require('@/assets/images/obiettivi.png')}
-        style={styles.background}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay}>
-          <Text style={styles.text}>
-            Start your story to unlock your objectives!
-          </Text>
-        </View>
-        <BottomNavbar state="start" onPress={() => {}} />
-      </ImageBackground>
+      <View style={styles.centered}><Text>Loading map...</Text></View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={points}
-        keyExtractor={(item, index) => (item?.point_id ?? index).toString()}
-        renderItem={({ item }) => {
-          const isCompleted = item.completed === 1;
-          const relatedQuestions = questions.filter(
-            (q) => Number(q.point_id) === Number(item.point_id)
-          );
+      <GoogleMap
+        mapContainerStyle={{ width: '100%', height: '100%' }}
+        center={position || { lat: 0, lng: 0 }}
+        zoom={17}
+        onLoad={(map) => (mapRef.current = map)}
+      />
 
-          return (
-            <View style={styles.pointBox}>
-              <View style={styles.pointHeader}>
-                <Text style={styles.pointTitle}>{item.name}</Text>
-                {isCompleted && (
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={24}
-                    color="#5D9C3F"
-                  />
-                )}
-              </View>
+      {!storyStarted && (
+        <View style={styles.encouragementBox}>
+          <Text style={styles.encouragementText}>
+            Start your story to unlock your objectives!
+          </Text>
+        </View>
+      )}
 
-              {item.text && <Text style={styles.pointText}>{item.text}</Text>}
+      <View style={styles.overlayContent}>
+        <FlatList
+          data={storyStarted ? visiblePoints : []}
+          keyExtractor={(item, index) => (item?.point_id ?? index).toString()}
+          renderItem={({ item }) => {
+            const relatedQuestions = questions.filter(
+              (q) => Number(q.point_id) === Number(item.point_id)
+            );
+            const isCompleted = item.completed === 1;
 
-              {relatedQuestions.length > 0 ? (
-                relatedQuestions.map((q, index) => {
-                  const questionKey = `${item.point_id}-${index}`;
+            return (
+              <View style={styles.pointBox}>
+                <View style={styles.pointHeader}>
+                  <Text style={styles.pointTitle}>{item.name}</Text>
+                  {isCompleted && <Ionicons name="checkmark-circle" size={24} color="#5D9C3F" />}
+                </View>
 
+                <Text style={styles.pointText}>{item.text}</Text>
+
+                {relatedQuestions.map((q, idx) => {
+                  const questionKey = `${item.point_id}-${idx}`;
                   return (
-                    <View key={questionKey} style={{ marginBottom: 8 }}>
-                      <Text style={styles.question}>• {q.question}</Text>
-
-                      {[q.first_answer, q.second_answer, q.third_answer].map(
-                        (answer, idx) => {
-                          const isSelected =
-                            selectedAnswers[questionKey] === idx + 1;
-
-                          return (
-                            <Text
-                              key={idx}
-                              style={[
-                                styles.answerOption,
-                                isSelected && styles.selectedAnswer,
-                              ]}
-                              onPress={() =>
-                                handleSelectAnswer(questionKey, idx + 1)
-                              }
-                            >
-                              {String.fromCharCode(65 + idx)}. {answer}
-                            </Text>
-                          );
-                        }
-                      )}
+                    <View key={questionKey}>
+                      <Text style={styles.question}>{q.question}</Text>
+                      {[q.first_answer, q.second_answer, q.third_answer].map((a, i) => (
+                        <Text
+                          key={i}
+                          style={[
+                            styles.answerOption,
+                            selectedAnswers[questionKey] === i + 1 && styles.selectedAnswer,
+                          ]}
+                          onPress={() => handleSelectAnswer(questionKey, i + 1)}
+                        >
+                          {String.fromCharCode(65 + i)}. {a}
+                        </Text>
+                      ))}
                     </View>
                   );
-                })
-              ) : (
-                <Text style={styles.question}>No questions.</Text>
-              )}
-            </View>
-          );
-        }}
+                })}
+
+                {!isCompleted && (
+                  <Text
+                    style={styles.doneButton}
+                    onPress={() => markPointAsCompleted(item)}
+                  >
+                    Done
+                  </Text>
+                )}
+              </View>
+            );
+          }}
+        />
+      </View>
+      <BottomNavbar
+        state={storyStarted ? 'stop' : 'start'}
+        onPress={() => router.push(storyStarted ? '/story' : '/time')}
       />
-      <BottomNavbar state="stop" onPress={handleStoryNavigation} />
+
+
     </View>
   );
 }
@@ -130,71 +226,90 @@ export default function PointsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
-    paddingBottom: 80,
-    backgroundColor: '#f6f6f6',
+    position: 'relative',
   },
-  background: {
+  overlayContent: {
+    position: 'absolute',
+    top: 20,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+  },
+  centered: {
     flex: 1,
-    width: '100%',
-    height: '100%',
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  overlay: {
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    margin: 32,
-    padding: 24,
-    borderRadius: 16,
-  },
-  text: {
-    fontSize: 18,
-    color: '#333',
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
-  pointBox: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+  encouragementBox: {
+    position: 'absolute',
+    top: 40,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    padding: 20,
+    borderRadius: 20,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
+    shadowRadius: 6,
+    zIndex: 10,
+  },
+  encouragementText: {
+    fontSize: 18,
+    textAlign: 'center',
+    color: '#333',
+    fontWeight: '600',
+  },
+  pointBox: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 24,
+    borderColor: '#D84171',
+    borderWidth: 2,
   },
   pointHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    alignItems: 'center',
   },
   pointTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: 'bold',
   },
   pointText: {
-    fontSize: 15,
-    color: '#555',
-    marginBottom: 8,
+    fontSize: 18,
+    color: '#000',
+    marginBottom: 12,
   },
   question: {
-    fontSize: 14,
-    color: '#444',
-    marginLeft: 8,
-    marginTop: 4,
+    fontSize: 16,
+    color: '#fff',
+    marginTop: 10,
+    marginBottom: 6,
   },
   answerOption: {
-    fontSize: 14,
-    color: '#444',
-    marginLeft: 16,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#eee',
-    marginTop: 4,
+    fontSize: 16,
+    color: '#fff',
+    backgroundColor: '#888',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    marginBottom: 10,
+    marginLeft: 12,
+    marginRight: 12,
   },
   selectedAnswer: {
     backgroundColor: '#D84171',
-    color: '#fff',
     fontWeight: 'bold',
+  },
+  doneButton: {
+    backgroundColor: '#5D9C3F',
+    color: 'white',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    paddingVertical: 10,
+    marginTop: 16,
+    borderRadius: 20,
   },
 });

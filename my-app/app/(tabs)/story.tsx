@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,10 +11,16 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { GoogleMap, useJsApiLoader } from '@react-google-maps/api';
 import BottomNavbar from '@/components/navigation/BottomNavbar';
 
 const windowHeight = Dimensions.get('window').height;
 const windowWidth = Dimensions.get('window').width;
+
+const containerStyle = {
+  width: '100%',
+  height: '100%',
+};
 
 export default function StoryMapScreen() {
   const { story, points, questions } = useLocalSearchParams();
@@ -23,10 +29,22 @@ export default function StoryMapScreen() {
   const [parsedQuestions, setParsedQuestions] = useState<any[]>([]);
   const router = useRouter();
 
-  const handleExit = () => {
-    sessionStorage.removeItem('activeStory');
-    router.push('/home');
-  };
+  const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [accuracy, setAccuracy] = useState<number>(50);
+  const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(true);
+  const [storyState, setStoryState] = useState<'stop' | 'continue'>('stop');
+  const [isAudioPlaying, setIsAudioPlaying] = useState(true);
+
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const markerRef = useRef<google.maps.Marker | null>(null);
+  const circleRef = useRef<google.maps.Circle | null>(null);
+
+  const { isLoaded } = useJsApiLoader({
+    id: 'script-loader',
+    googleMapsApiKey: 'AIzaSyBjbQDjbaNPKzvwmJ3lfKYUGh2JXrVfg5s',
+    libraries: ['places'],
+  });
 
   useEffect(() => {
     if (story && points && questions) {
@@ -61,12 +79,6 @@ export default function StoryMapScreen() {
     }
   }, [story, points, questions]);
 
-  const [locationUrl, setLocationUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(true);
-  const [storyState, setStoryState] = useState<'stop' | 'continue'>('stop');
-  const [isAudioPlaying, setIsAudioPlaying] = useState(true);
-
   const toggleAudio = () => {
     setIsAudioPlaying((prev) => !prev);
   };
@@ -75,25 +87,77 @@ export default function StoryMapScreen() {
     setStoryState((prev) => (prev === 'stop' ? 'continue' : 'stop'));
   };
 
+  const handleExit = () => {
+    sessionStorage.removeItem('activeStory');
+    router.push('/home');
+  };
+
   useEffect(() => {
-    if (Platform.OS === 'web') {
-      if ('geolocation' in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const { latitude, longitude } = position.coords;
-            const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}&z=15&output=embed`;
-            setLocationUrl(mapsUrl);
-          },
-          (err) => {
-            setError('Unable to retrieve location.');
-            console.error('Geolocation error:', err);
-          }
-        );
-      } else {
-        setError('Geolocation not supported by the browser.');
-      }
+    if (Platform.OS === 'web' && 'geolocation' in navigator) {
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const coords = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          };
+          setPosition(coords);
+          setAccuracy(pos.coords.accuracy);
+          console.log(`📍 Lat: ${coords.lat}, Lng: ${coords.lng}, Accuracy: ${pos.coords.accuracy} m`);
+        },
+        (err) => {
+          console.error('Geolocation error:', err);
+          setError('Unable to retrieve location.');
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 1000,
+          timeout: 5000,
+        }
+      );
+      return () => navigator.geolocation.clearWatch(watchId);
+    } else {
+      setError('Geolocation not supported by the browser.');
     }
   }, []);
+
+  useEffect(() => {
+    if (position && mapRef.current) {
+      if (!markerRef.current) {
+        markerRef.current = new window.google.maps.Marker({
+          position,
+          map: mapRef.current,
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: '#4285F4',
+            fillOpacity: 1,
+            strokeWeight: 2,
+            strokeColor: 'white',
+          },
+        });
+      } else {
+        markerRef.current.setPosition(position);
+      }
+
+      if (!circleRef.current) {
+        circleRef.current = new window.google.maps.Circle({
+          strokeColor: '#4285F4',
+          strokeOpacity: 0.5,
+          strokeWeight: 1,
+          fillColor: '#4285F4',
+          fillOpacity: 0.2,
+          map: mapRef.current,
+          center: position,
+          radius: accuracy,
+        });
+      } else {
+        circleRef.current.setCenter(position);
+        circleRef.current.setRadius(accuracy);
+      }
+
+      mapRef.current.setCenter(position);
+    }
+  }, [position, accuracy]);
 
   if (Platform.OS !== 'web') {
     return (
@@ -103,49 +167,45 @@ export default function StoryMapScreen() {
     );
   }
 
-  if (error) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.message}>{error}</Text>
-      </View>
-    );
-  }
-
-  if (!locationUrl) {
+  if (!isLoaded) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color="#5D9C3F" />
-        <Text style={styles.message}>Fetching your location...</Text>
+        <Text style={styles.message}>Loading map...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.fullscreen}>
-      <iframe src={locationUrl} style={styles.iframe} loading="lazy"></iframe>
+      <GoogleMap
+        mapContainerStyle={containerStyle}
+        zoom={16}
+        center={position || { lat: 0, lng: 0 }}
+        onLoad={(map) => (mapRef.current = map)}
+        options={{
+          disableDefaultUI: false,
+        }}
+      />
 
-      <View
-        style={[
-          styles.overlay,
-          {
-            height: expanded ? windowHeight * 0.5 : 50,
-          },
-        ]}
-      >
+      {/* Overlay con storia */}
+      <View style={[styles.overlay, { height: expanded ? windowHeight * 0.3 : 50 }]}>
         <Pressable style={styles.toggle} onPress={() => setExpanded((prev) => !prev)}>
-          <Ionicons
-            name={expanded ? 'chevron-up' : 'chevron-down'}
-            size={24}
-            color="#333"
-          />
+          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={24} color="#333" />
         </Pressable>
 
         {expanded && (
           <ScrollView style={styles.scrollContent}>
             <Text style={styles.header}>Here is your story!</Text>
-            <Text style={styles.title}>{parsedStory.title}</Text>
-            <Text style={styles.intro}>{parsedStory.intro}</Text>
-            <Text style={styles.theme}>{parsedStory.theme}</Text>
+            <Text style={styles.title}>{parsedStory?.title}</Text>
+            <Text style={styles.intro}>{parsedStory?.intro}</Text>
+            <Text style={styles.theme}>{parsedStory?.theme}</Text>
+            <Pressable
+              onPress={handleExit}
+              style={[styles.exitButton, { top: expanded ? windowHeight * 0.3 + 80 : 80 }]}
+            >
+              <Text style={styles.exitText}>Finish</Text>
+            </Pressable>
           </ScrollView>
         )}
 
@@ -159,23 +219,9 @@ export default function StoryMapScreen() {
         </View>
       </View>
 
-      <Pressable
-        onPress={handleExit}
-        style={[
-          styles.exitButtonOutside,
-          {
-            top: expanded ? windowHeight * 0.5 + 40 : 80, // si adatta allo stato
-          },
-        ]}
-      >
-        <Text style={styles.exitText}>Exit</Text>
-      </Pressable>
+      
 
-
-      <BottomNavbar
-        state={storyState}
-        onPress={handleStoryStateToggle}
-      />
+      <BottomNavbar state={storyState} onPress={handleStoryStateToggle} />
     </View>
   );
 }
@@ -186,15 +232,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '100%',
     height: '100%',
-  },
-  iframe: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    zIndex: 0,
-    pointerEvents: 'none',
   },
   overlay: {
     position: 'absolute',
@@ -221,7 +258,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     marginTop: 36,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 30,
   },
   header: {
     fontSize: 18,
@@ -230,20 +267,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    fontSize: 22,
+    fontSize: 23,
     color: '#D84171',
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 12,
   },
   intro: {
-    fontSize: 16,
+    fontSize: 18,
     textAlign: 'center',
     color: '#444',
     marginBottom: 10,
   },
   theme: {
-    fontSize: 16,
+    fontSize: 18,
     textAlign: 'center',
     color: '#222',
   },
@@ -277,15 +314,14 @@ const styles = StyleSheet.create({
   active: {
     backgroundColor: '#D84171',
   },
-  exitButtonOutside: {
+  exitButton: {
     position: 'absolute',
-    top: windowHeight * 0.5 + 50, 
     left: '50%',
-    transform: [{ translateX: -60 }],
-    backgroundColor: '#5D9C3F',
+    transform: [{ translateX: 60 }],
+    backgroundColor: '#D84171',
     paddingVertical: 8,
     paddingHorizontal: 24,
-    borderRadius: 10,
+    borderRadius: 15,
     zIndex: 15,
   },
   exitText: {
