@@ -117,7 +117,7 @@ export default function PointsScreen() {
 
   const markPointAsCompleted = async (point: any) => {
     try {
-      await fetch('/api/complete-point', {
+      await fetch('http://127.0.0.1:5000/complete-point', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ story_id: point.story_id, point_id: point.point_id }),
