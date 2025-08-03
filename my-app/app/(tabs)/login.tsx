@@ -34,6 +34,10 @@ export default function LoginScreen() {
         body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
+      if (data.success) {
+        // Salva l’utente loggato localmente
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
       if (data.success) router.push('/home');
       else alert('Credenziali non valide');
     } catch (e) {

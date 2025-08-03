@@ -87,10 +87,49 @@ export default function StoryMapScreen() {
     setStoryState((prev) => (prev === 'stop' ? 'continue' : 'stop'));
   };
 
-  const handleExit = () => {
+
+
+
+  const handleStoryCompletion = async () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+    const storyId = parsedStory?.id;
+
+    if (!storyId || !userId) {
+      console.warn('Missing storyId or userId');
+      return;
+    }
+
+    const response = await fetch('http://127.0.0.1:5000/complete-story', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        story_id: storyId,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (response.ok && result.success) {
+      console.log('✅ Storia registrata come completata');
+    } else {
+      console.warn('⚠️ Errore nella registrazione:', result.message);
+    }
+  } catch (error) {
+    console.error('❌ Errore durante la POST:', error);
+  }
+};
+
+  const handleExit = async () => {
+    await handleStoryCompletion(); // registra la storia completata
     sessionStorage.removeItem('activeStory');
     router.push('/home');
   };
+
 
   useEffect(() => {
     if (Platform.OS === 'web' && 'geolocation' in navigator) {

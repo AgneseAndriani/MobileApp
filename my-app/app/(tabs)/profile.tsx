@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,111 +6,144 @@ import {
   Dimensions,
   ScrollView,
   ImageBackground,
+  ActivityIndicator,
 } from 'react-native';
-import { LineChart, BarChart } from 'react-native-chart-kit';
+import { BarChart, LineChart } from 'react-native-chart-kit';
 import BottomNavbar from '@/components/navigation/BottomNavbar';
+
 
 const screenWidth = Dimensions.get('window').width;
 
+const DAYS_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
 export default function ProfileStatistics() {
+  const [weeklyStats, setWeeklyStats] = useState({
+    km: Array(7).fill(0),
+    steps: Array(7).fill(0),
+    calories: Array(7).fill(0),
+    labels: DAYS_ORDER,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const response = await fetch(`http://127.0.0.1:5000/user-weekly-stats?user_id=${user.id}`);
+        const data = await response.json();
+
+        const km = Array(7).fill(0);
+        const steps = Array(7).fill(0);
+        const calories = Array(7).fill(0);
+
+        data.forEach((entry: any) => {
+          const dayIndex = DAYS_ORDER.indexOf(entry.day);
+          if (dayIndex !== -1) {
+            km[dayIndex] = entry.total_km;
+            steps[dayIndex] = entry.total_steps;
+            calories[dayIndex] = entry.total_calories;
+          }
+        });
+
+        setWeeklyStats({ km, steps, calories, labels: DAYS_ORDER });
+      } catch (error) {
+        console.error('Errore nel caricamento statistiche:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#5D9C3F" />
+        <Text style={styles.loadingText}>Loading your weekly stats...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.wrapper}>
       <ScrollView contentContainerStyle={styles.container}>
+        <ImageBackground
+          source={require('@/assets/images/profilo.png')}
+          style={styles.header}
+          resizeMode="cover"
+        >
+          <Text style={styles.title}>Personal Area</Text>
+        </ImageBackground>
 
-      <ImageBackground
-        source={require('@/assets/images/profilo.png')}
-        style={styles.header}
-        resizeMode="cover"
-      >
-        <Text style={styles.title}>Personal area</Text>
-      </ImageBackground>
 
-      {/* Contenuto scrollabile */}
-        {/* KM Chart */}
+        {/* KM */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Km</Text>
           <BarChart
             data={{
-              labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-              datasets: [
-                {
-                  data: [2.1, 1.8, 2.5, 1.4, 2.2, 3.0, 2.4],
-                  colors: [
-                    () => '#D84171',
-                    () => '#F3B1C8',
-                    () => '#5D9C3F',
-                    () => '#D84171',
-                    () => '#5D9C3F',
-                    () => '#F3B1C8',
-                    () => '#D84171',
-                  ],
-                },
-              ],
+              labels: weeklyStats.labels,
+              datasets: [{ data: weeklyStats.km }],
             }}
-            width={screenWidth - 40}
+            width={screenWidth - 64}
             height={180}
             chartConfig={chartConfig}
-            style={styles.chart}
             fromZero
-            withCustomBarColorFromData
-            flatColor
+            style={styles.chart}
           />
-          <Text style={styles.cardFooter}>15,30 km in 7 days</Text>
+          <Text style={styles.cardFooter}>
+            {weeklyStats.km.reduce((a, b) => a + b, 0).toFixed(2)} km in 7 days
+          </Text>
         </View>
 
-        {/* Kcal Line Chart */}
+        {/* Calorie */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Kcal</Text>
           <LineChart
             data={{
-              labels: ['200', '300', '400', '500', '600'],
-              datasets: [
-                {
-                  data: [250, 280, 300, 350, 400, 480, 520],
-                  color: () => '#D84171',
-                },
-              ],
+              labels: weeklyStats.labels,
+              datasets: [{ data: weeklyStats.calories }],
             }}
-            width={screenWidth - 40}
+            width={screenWidth - 64}
             height={180}
             chartConfig={chartConfig}
             bezier
+            fromZero
             style={styles.chart}
           />
-          <Text style={styles.cardFooter}>1500 kcal in 7 days</Text>
+          <Text style={styles.cardFooter}>
+            {weeklyStats.calories.reduce((a, b) => a + b, 0).toFixed(0)} kcal in 7 days
+          </Text>
         </View>
 
-        {/* Steps Chart */}
+        {/* Steps */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Total steps</Text>
+          <Text style={styles.cardTitle}>Steps</Text>
           <BarChart
             data={{
-              labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-              datasets: [
-                {
-                  data: [6000, 7500, 9000, 7000, 10000, 8000, 7200],
-                },
-              ],
+              labels: weeklyStats.labels,
+              datasets: [{ data: weeklyStats.steps }],
             }}
-            width={screenWidth - 40}
+            width={screenWidth - 64}
             height={180}
             chartConfig={chartConfig}
             fromZero
             style={styles.chart}
           />
-          <Text style={styles.cardFooter}>10.000 steps in 7 days</Text>
+          <Text style={styles.cardFooter}>
+            {weeklyStats.steps.reduce((a, b) => a + b, 0)} steps in 7 days
+          </Text>
         </View>
       </ScrollView>
 
-      {/* Navbar in basso */}
       <BottomNavbar state="start" onPress={() => {}} />
     </View>
   );
 }
 
 const chartConfig = {
-  backgroundGradientFrom: 'rgba(255,255,255,0.9)',
-  backgroundGradientTo: 'rgba(255,255,255,0.9)',
+  backgroundGradientFrom: '#fff',
+  backgroundGradientTo: '#fff',
   decimalPlaces: 0,
   color: (opacity = 1) => `rgba(91, 143, 63, ${opacity})`,
   labelColor: () => '#333',
@@ -128,21 +161,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   header: {
-    width: '100%',
-    height: 100,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    paddingBottom: 16,
-  },
-  title: {
-    fontSize: 24,
-    color: 'white',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
+  width: '100%',
+  height: 250, 
+  justifyContent: 'flex-start',
+  alignItems: 'center',
+  paddingTop: 40,     
+  marginBottom: 32,   
+  backgroundColor: '#fff', 
+},
+title: {
+  fontSize: 24,
+  color: 'white',
+  fontWeight: 'bold',
+  textAlign: 'center',
+},
   container: {
     alignItems: 'center',
-    paddingBottom: 150, // spazio per la navbar
+    paddingBottom: 150,
   },
   card: {
     backgroundColor: '#fff',
@@ -171,5 +206,15 @@ const styles = StyleSheet.create({
   },
   chart: {
     borderRadius: 12,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#444',
   },
 });

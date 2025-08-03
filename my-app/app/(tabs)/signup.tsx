@@ -50,6 +50,10 @@ const RegisterScreen = () => {
         }),
       });
       const data = await response.json();
+    if (data.success) {
+      // Salva l’utente loggato localmente
+      localStorage.setItem('user', JSON.stringify(data.user));
+    }
       if (data && data.id) {
         router.push('/create');
       } else {
