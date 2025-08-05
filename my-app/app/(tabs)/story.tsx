@@ -124,11 +124,53 @@ export default function StoryMapScreen() {
   }
 };
 
-  const handleExit = async () => {
-    await handleStoryCompletion(); // registra la storia completata
-    sessionStorage.removeItem('activeStory');
-    router.push('/home');
-  };
+const updateGoalProgress = async (goalName: string, progress: number, completed = false) => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const response = await fetch(`http://127.0.0.1:5000/goals/${goalName}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: user.id,
+        progress,
+        completed,
+      }),
+    });
+
+    const result = await response.json();
+    if (response.ok && result.success) {
+      console.log(`🎯 Goal "${goalName}" aggiornato`);
+    } else {
+      console.warn(`⚠️ Errore aggiornando il goal ${goalName}:`, result.message);
+    }
+  } catch (err) {
+    console.error('❌ Errore aggiornamento goal:', err);
+  }
+};
+
+const handleExit = async () => {
+  await handleStoryCompletion(); // registra la storia completata
+
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const userId = user.id;
+
+  if (parsedStory && userId) {
+    const km = parsedStory.km || 0;
+    const duration = parsedStory.duration || 0;
+    const steps = parsedStory.steps || 0;
+
+    await updateGoalProgress('first_story', 1, true);
+    await updateGoalProgress('walk_5km', km, km >= 5);
+    await updateGoalProgress('monthly_steps_20000', steps, false);
+    if (duration >= 60) {
+      await updateGoalProgress('long_story_60min', duration, true);
+    }
+  }
+
+  sessionStorage.removeItem('activeStory');
+  router.push('/home');
+};
+
 
 
   useEffect(() => {

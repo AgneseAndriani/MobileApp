@@ -59,9 +59,14 @@ export default function PlacesScreen() {
             <Text style={styles.skipText}>Skip</Text>
           </Pressable>
 
-          <Pressable style={styles.forwardButton} onPress={goToGenre}>
-            <Ionicons name="arrow-forward" size={24} color="white" />
-          </Pressable>
+           <View style={styles.buttonRow}>
+                      <Pressable style={styles.button} onPress={() => router.push('/time')}>
+                        <Ionicons name="arrow-back" size={24} color="white" />
+                      </Pressable>
+                      <Pressable style={styles.button} onPress={() => router.push('/genre')}>
+                        <Ionicons name="arrow-forward" size={24} color="white" />
+                      </Pressable>
+              </View>
         </KeyboardAvoidingView>
       </ImageBackground>
     </LayoutWrapper>
@@ -121,4 +126,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  button: {
+  width: wp('12%'),
+  height: wp('12%'),
+  backgroundColor: '#5D9C3F',
+  borderRadius: wp('6%'),
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+  buttonRow: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  width: wp('30%'),
+  position: 'absolute',
+  bottom: hp('3%'),
+  alignSelf: 'center',
+},
+
 });

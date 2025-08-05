@@ -10,10 +10,10 @@ import {
 } from 'react-native';
 import { BarChart, LineChart } from 'react-native-chart-kit';
 import BottomNavbar from '@/components/navigation/BottomNavbar';
+import { router } from 'expo-router';
 
 
 const screenWidth = Dimensions.get('window').width;
-
 const DAYS_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function ProfileStatistics() {
@@ -23,6 +23,17 @@ export default function ProfileStatistics() {
     calories: Array(7).fill(0),
     labels: DAYS_ORDER,
   });
+  const [storyState, setStoryState] = useState<'stop' | 'continue' | 'none'>('none');
+
+useEffect(() => {
+  const stored = sessionStorage.getItem('activeStory');
+  if (stored) {
+    setStoryState('continue');
+  } else {
+    setStoryState('none');
+  }
+}, []);
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -78,6 +89,21 @@ export default function ProfileStatistics() {
 
 
         {/* KM */}
+        <View style={styles.tabButtonsWrapper}>
+          <View style={[styles.tabButton, styles.activeTab]}>
+            <Text style={[styles.tabText, styles.activeTabText]}>Rating</Text>
+          </View>
+          <View style={styles.tabButton}>
+            <Text
+              style={styles.tabText}
+              onPress={() => router.push('/settings')}
+            >
+      Settings
+    </Text>
+  </View>
+</View>
+
+
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Km</Text>
           <BarChart
@@ -135,9 +161,17 @@ export default function ProfileStatistics() {
           </Text>
         </View>
       </ScrollView>
-
-      <BottomNavbar state="start" onPress={() => {}} />
-    </View>
+      {storyState === 'none' ? (
+        <BottomNavbar state="start" onPress={() => router.push('/time')} />
+      ) : (
+        <BottomNavbar
+          state={storyState}
+          onPress={() =>
+            setStoryState((prev) => (prev === 'stop' ? 'continue' : 'stop'))
+          }
+        />
+      )}
+      </View>
   );
 }
 
@@ -153,6 +187,10 @@ const chartConfig = {
     strokeDasharray: '',
     stroke: '#ddd',
   },
+  propsForLabels: {
+    fontFamily: 'Helvetica', 
+    fontSize: 12,
+  },
 };
 
 const styles = StyleSheet.create({
@@ -165,12 +203,12 @@ const styles = StyleSheet.create({
   height: 250, 
   justifyContent: 'flex-start',
   alignItems: 'center',
-  paddingTop: 40,     
+  paddingTop: 90,     
   marginBottom: 32,   
   backgroundColor: '#fff', 
 },
 title: {
-  fontSize: 24,
+  fontSize: 30,
   color: 'white',
   fontWeight: 'bold',
   textAlign: 'center',
@@ -217,4 +255,39 @@ title: {
     fontSize: 16,
     color: '#444',
   },
+  tabButtonsWrapper: {
+  flexDirection: 'row',
+  justifyContent: 'center',
+  marginTop: 12,
+  marginBottom: 20,
+},
+
+tabButton: {
+  paddingVertical: 12,
+  paddingHorizontal: 32,
+  backgroundColor: '#fff',
+  marginHorizontal: 16,
+  borderRadius: 30,
+  shadowColor: '#000',
+  shadowOpacity: 0.2,
+  shadowOffset: { width: 0, height: 4 },
+  shadowRadius: 6,
+  elevation: 5,
+},
+
+tabText: {
+  fontSize: 18,
+  color: '#333',
+},
+
+activeTab: {
+  backgroundColor: '#fff',
+},
+
+activeTabText: {
+  fontWeight: 'bold',
+  color: '#000',
+},
+
+
 });

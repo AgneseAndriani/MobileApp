@@ -111,9 +111,15 @@ export default function PlayTimePickerScreen() {
             </View>
           </View>
 
-          <Pressable style={styles.button} onPress={handleSubmit}>
-            <Ionicons name="arrow-forward" size={24} color="white" />
-          </Pressable>
+          <View style={styles.buttonRow}>
+            <Pressable style={styles.button} onPress={() => router.push('/home')}>
+              <Ionicons name="arrow-back" size={24} color="white" />
+            </Pressable>
+            <Pressable style={styles.button} onPress={handleSubmit}>
+              <Ionicons name="arrow-forward" size={24} color="white" />
+            </Pressable>
+          </View>
+
         </View>
       </ImageBackground>
     </LayoutWrapper>
@@ -191,14 +197,22 @@ const styles = StyleSheet.create({
     zIndex: 4,
   },
   button: {
-    position: 'absolute',
-    bottom: hp('3%'),
-    alignSelf: 'center',
-    width: wp('10%'),
-    height: wp('10%'),
-    backgroundColor: '#5D9C3F',
-    borderRadius: wp('5%'),
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  width: wp('12%'),
+  height: wp('12%'),
+  backgroundColor: '#5D9C3F',
+  borderRadius: wp('6%'),
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+buttonRow: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  width: wp('30%'),
+  position: 'absolute',
+  bottom: hp('3%'),
+  alignSelf: 'center',
+},
+
+
 });
