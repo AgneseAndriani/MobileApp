@@ -36,6 +36,25 @@ export default function PointsScreen() {
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [accuracy, setAccuracy] = useState<number>(50);
 
+  // ✅ stato badge persistente, come in StoryMapScreen
+  const [navbarState, setNavbarState] = useState<'start' | 'stop' | 'continue'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('storyState');
+      if (saved === 'start' || saved === 'stop' || saved === 'continue') return saved as any;
+      // se esiste una storia attiva ma nessuno stato salvato, parti da 'stop'
+      const hasStory = !!sessionStorage.getItem('activeStory');
+      return hasStory ? 'stop' : 'start';
+    }
+    return 'start';
+  });
+
+  // ✅ sincronizza sempre sullo storage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('storyState', navbarState);
+    }
+  }, [navbarState]);
+
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
   const circleRef = useRef<google.maps.Circle | null>(null);
@@ -54,6 +73,11 @@ export default function PointsScreen() {
         setPoints(parsed.points ?? []);
         setQuestions(parsed.questions ?? []);
         setStoryStarted(true);
+        // ✅ se entri qui con storia attiva e lo stato è 'start', portalo a 'stop'
+        setNavbarState(prev => (prev === 'start' ? 'stop' : prev));
+      } else {
+        setStoryStarted(false);
+        setNavbarState('start');
       }
     }
   }, []);
@@ -213,12 +237,19 @@ export default function PointsScreen() {
           }}
         />
       </View>
+
+      {/* ✅ Navbar coerente e persistente */}
       <BottomNavbar
-        state={storyStarted ? 'stop' : 'start'}
-        onPress={() => router.push(storyStarted ? '/story' : '/time')}
+        state={navbarState}
+        onPress={() => {
+          if (navbarState === 'start') {
+            router.push('/time'); // inizia la storia
+          } else {
+            const next = navbarState === 'stop' ? 'continue' : 'stop';
+            setNavbarState(next); // toggle ⏸/▶ senza cambiare pagina
+          }
+        }}
       />
-
-
     </View>
   );
 }

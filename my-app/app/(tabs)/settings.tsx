@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,8 @@ import {
   ImageBackground,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Feather, Ionicons, MaterialIcons, Entypo } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import BottomNavbar from '@/components/navigation/BottomNavbar';
-import { useState } from 'react';
 
 const OPTIONS = [
   { label: 'Account', icon: <Feather name="user" size={20} color="#333" /> },
@@ -22,17 +21,30 @@ const OPTIONS = [
 ];
 
 export default function Settings() {
-    const [storyState, setStoryState] = useState<'stop' | 'continue' | 'none'>('none');
-
-    useEffect(() => {
-    const stored = sessionStorage.getItem('activeStory');
-    if (stored) {
-        setStoryState('continue');
-    } else {
-        setStoryState('none');
+  // stato badge persistente
+  const [storyState, setStoryState] = useState<'start' | 'stop' | 'continue'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('storyState');
+      if (saved === 'start' || saved === 'stop' || saved === 'continue') return saved as any;
+      const hasStory = !!sessionStorage.getItem('activeStory');
+      return hasStory ? 'stop' : 'start';
     }
-    }, []);
+    return 'start';
+  });
 
+  // riallinea all’ingresso rispetto ad activeStory
+  useEffect(() => {
+    const stored = sessionStorage.getItem('activeStory');
+    if (stored) setStoryState(prev => (prev === 'start' ? 'stop' : prev));
+    else setStoryState('start');
+  }, []);
+
+  // sincronizza su storage a ogni cambio
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('storyState', storyState);
+    }
+  }, [storyState]);
 
   return (
     <View style={styles.wrapper}>
@@ -48,10 +60,7 @@ export default function Settings() {
         {/* Top Tabs */}
         <View style={styles.tabButtonsWrapper}>
           <View style={styles.tabButton}>
-            <Text
-              style={styles.tabText}
-              onPress={() => router.push('/profile')}
-            >
+            <Text style={styles.tabText} onPress={() => router.push('/profile')}>
               Rating
             </Text>
           </View>
@@ -62,58 +71,53 @@ export default function Settings() {
 
         {/* Options List */}
         <View style={styles.optionsContainer}>
-  {OPTIONS.map((item, index) => (
-    <Pressable key={index} style={styles.optionItem}>
-      <View style={styles.optionLeft}>
-        {item.icon}
-        <Text style={styles.optionText}>{item.label}</Text>
-      </View>
-      <Feather name="chevron-right" size={20} color="#999" />
-    </Pressable>
-  ))}
+          {OPTIONS.map((item, index) => (
+            <Pressable key={index} style={styles.optionItem}>
+              <View style={styles.optionLeft}>
+                {item.icon}
+                <Text style={styles.optionText}>{item.label}</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color="#999" />
+            </Pressable>
+          ))}
 
-  {/* Logout Option */}
-        <Pressable
-          style={styles.optionItem}
-          onPress={() => {
-            sessionStorage.clear();
-            localStorage.clear();
-            router.replace('/');
-          }}
-        >
-          <View style={styles.optionLeft}>
-            <Feather name="log-out" size={20} color="#333" />
-            <Text style={styles.optionText}>Logout</Text>
-          </View>
-          <Feather name="chevron-right" size={20} color="#999" />
-        </Pressable>
-      </View>
-
+          {/* Logout */}
+          <Pressable
+            style={styles.optionItem}
+            onPress={() => {
+              sessionStorage.removeItem('storyState'); // reset badge
+              sessionStorage.clear();
+              localStorage.clear();
+              router.replace('/');
+            }}
+          >
+            <View style={styles.optionLeft}>
+              <Feather name="log-out" size={20} color="#333" />
+              <Text style={styles.optionText}>Logout</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#999" />
+          </Pressable>
+        </View>
       </ScrollView>
-      {storyState === 'none' ? (
-        <BottomNavbar state="start" onPress={() => router.push('/time')} />
-        ) : (
-        <BottomNavbar
-            state={storyState}
-            onPress={() =>
-            setStoryState((prev) => (prev === 'stop' ? 'continue' : 'stop'))
-            }
-        />
-        )}
 
+      {/* Navbar coerente e persistente */}
+      <BottomNavbar
+        state={storyState}
+        onPress={() => {
+          if (storyState === 'start') {
+            router.push('/time'); // inizia la storia
+          } else {
+            setStoryState(prev => (prev === 'stop' ? 'continue' : 'stop')); // toggle ⏸/▶
+          }
+        }}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  container: {
-    alignItems: 'center',
-    paddingBottom: 150,
-  },
+  wrapper: { flex: 1, backgroundColor: '#fff' },
+  container: { alignItems: 'center', paddingBottom: 150 },
   header: {
     width: '100%',
     height: 250,
@@ -123,18 +127,8 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     backgroundColor: '#fff',
   },
-  title: {
-    fontSize: 30,
-    color: 'white',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  tabButtonsWrapper: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 12,
-    marginBottom: 20,
-  },
+  title: { fontSize: 30, color: 'white', fontWeight: 'bold', textAlign: 'center' },
+  tabButtonsWrapper: { flexDirection: 'row', justifyContent: 'center', marginTop: 12, marginBottom: 20 },
   tabButton: {
     paddingVertical: 12,
     paddingHorizontal: 32,
@@ -147,21 +141,10 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 5,
   },
-  tabText: {
-    fontSize: 18,
-    color: '#333',
-  },
-  activeTab: {
-    backgroundColor: '#fff',
-  },
-  activeTabText: {
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  optionsContainer: {
-    width: '90%',
-    marginTop: 10,
-  },
+  tabText: { fontSize: 18, color: '#333' },
+  activeTab: { backgroundColor: '#fff' },
+  activeTabText: { fontWeight: 'bold', color: '#000' },
+  optionsContainer: { width: '90%', marginTop: 10 },
   optionItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -170,13 +153,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  optionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  optionText: {
-    fontSize: 16,
-    color: '#333',
-  },
+  optionLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  optionText: { fontSize: 16, color: '#333' },
 });

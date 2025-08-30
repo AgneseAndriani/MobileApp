@@ -12,18 +12,36 @@ import { router } from 'expo-router';
 import BottomNavbar from '@/components/navigation/BottomNavbar';
 
 export default function Goals() {
-  const [storyState, setStoryState] = useState<'stop' | 'continue' | 'none'>('none');
-  const [goals, setGoals] = useState([]);
-  const [loadingGoals, setLoadingGoals] = useState(true);
+  // ✅ stato badge persistente
+  const [storyState, setStoryState] = useState<'start' | 'stop' | 'continue'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('storyState');
+      if (saved === 'start' || saved === 'stop' || saved === 'continue') return saved as any;
+      const hasStory = !!sessionStorage.getItem('activeStory');
+      return hasStory ? 'stop' : 'start';
+    }
+    return 'start';
+  });
 
+  // riallinea all’ingresso rispetto ad activeStory
   useEffect(() => {
     const stored = sessionStorage.getItem('activeStory');
     if (stored) {
-      setStoryState('continue');
+      setStoryState(prev => (prev === 'start' ? 'stop' : prev));
     } else {
-      setStoryState('none');
+      setStoryState('start');
     }
   }, []);
+
+  // sincronizza su storage a ogni cambio
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('storyState', storyState);
+    }
+  }, [storyState]);
+
+  const [goals, setGoals] = useState([]);
+  const [loadingGoals, setLoadingGoals] = useState(true);
 
   const fetchGoalsFromAPI = useCallback(async () => {
     try {
@@ -53,7 +71,6 @@ export default function Goals() {
           <Text style={styles.title}>Goals</Text>
         </ImageBackground>
 
-
         {/* Goals list */}
         <View style={styles.goalContainer}>
           <Text style={styles.goalTitle}>Your personal goals</Text>
@@ -64,29 +81,28 @@ export default function Goals() {
             <Text style={styles.goalPlaceholder}>No goals available</Text>
           ) : (
             goals.map((goal: any) => (
-            <View key={goal.goal_name} style={styles.goalCard}>
-              <Text style={styles.goalCardText}>{goal.title}</Text>
-              <Text style={styles.goalCardProgress}>
-                {goal.progress}/{goal.target}
-              </Text>
-            </View>
-          ))
-
+              <View key={goal.goal_name} style={styles.goalCard}>
+                <Text style={styles.goalCardText}>{goal.title}</Text>
+                <Text style={styles.goalCardProgress}>
+                  {goal.progress}/{goal.target}
+                </Text>
+              </View>
+            ))
           )}
         </View>
       </ScrollView>
 
-      {/* Dynamic Bottom Navbar */}
-      {storyState === 'none' ? (
-        <BottomNavbar state="start" onPress={() => router.push('/time')} />
-      ) : (
-        <BottomNavbar
-          state={storyState}
-          onPress={() =>
-            setStoryState((prev) => (prev === 'stop' ? 'continue' : 'stop'))
+      {/* ✅ Navbar coerente e persistente */}
+      <BottomNavbar
+        state={storyState}
+        onPress={() => {
+          if (storyState === 'start') {
+            router.push('/time'); // inizia la storia
+          } else {
+            setStoryState(prev => (prev === 'stop' ? 'continue' : 'stop')); // toggle ⏸/▶
           }
-        />
-      )}
+        }}
+      />
     </View>
   );
 }
@@ -114,24 +130,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
-  goalCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#5D9C3F',
-    paddingVertical: 18,
-    paddingHorizontal: 24,
-    borderRadius: 24,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 6,
-    elevation: 4,
+  goalContainer: {
+    width: '90%',
+    alignSelf: 'center',
   },
-
   goalTitle: {
     fontSize: 20,
     fontWeight: '600',
@@ -144,48 +146,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
   },
-  goalItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: '#ddd',
-  },
-  goalName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-  },
-  goalProgress: {
-    fontSize: 14,
-    color: '#555',
-    marginTop: 4,
-  },
   goalCard: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  backgroundColor: '#fff',
-  borderWidth: 2,
-  borderColor: '#5D9C3F',
-  paddingVertical: 14,
-  paddingHorizontal: 20,
-  borderRadius: 20,
-  marginBottom: 12,
-  shadowColor: '#000',
-  shadowOpacity: 0.05,
-  shadowOffset: { width: 0, height: 2 },
-  shadowRadius: 4,
-  elevation: 3,
-},
-goalCardText: {
-  fontSize: 18,
-  color: '#333',
-  fontWeight: '600',
-},
-goalCardProgress: {
-  fontSize: 18,
-  fontWeight: 'bold',
-  color: '#1C1C1C',
-},
-
-
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#5D9C3F',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  goalCardText: {
+    fontSize: 18,
+    color: '#333',
+    fontWeight: '600',
+  },
+  goalCardProgress: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1C1C1C',
+  },
 });

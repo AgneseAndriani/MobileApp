@@ -12,7 +12,6 @@ import { BarChart, LineChart } from 'react-native-chart-kit';
 import BottomNavbar from '@/components/navigation/BottomNavbar';
 import { router } from 'expo-router';
 
-
 const screenWidth = Dimensions.get('window').width;
 const DAYS_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -23,16 +22,34 @@ export default function ProfileStatistics() {
     calories: Array(7).fill(0),
     labels: DAYS_ORDER,
   });
-  const [storyState, setStoryState] = useState<'stop' | 'continue' | 'none'>('none');
 
-useEffect(() => {
-  const stored = sessionStorage.getItem('activeStory');
-  if (stored) {
-    setStoryState('continue');
-  } else {
-    setStoryState('none');
-  }
-}, []);
+  // ✅ stato badge persistente
+  const [storyState, setStoryState] = useState<'start' | 'stop' | 'continue'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('storyState');
+      if (saved === 'start' || saved === 'stop' || saved === 'continue') return saved as any;
+      const hasStory = !!sessionStorage.getItem('activeStory');
+      return hasStory ? 'stop' : 'start';
+    }
+    return 'start';
+  });
+
+  // ✅ sincronizza su storage a ogni cambio
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('storyState', storyState);
+    }
+  }, [storyState]);
+
+  // ✅ riallinea all’ingresso (es. se altre pagine hanno cambiato lo stato)
+  useEffect(() => {
+    const stored = sessionStorage.getItem('activeStory');
+    if (stored) {
+      setStoryState(prev => (prev === 'start' ? 'stop' : prev));
+    } else {
+      setStoryState('start');
+    }
+  }, []);
 
   const [loading, setLoading] = useState(true);
 
@@ -87,30 +104,23 @@ useEffect(() => {
           <Text style={styles.title}>Personal Area</Text>
         </ImageBackground>
 
-
-        {/* KM */}
+        {/* Tabs */}
         <View style={styles.tabButtonsWrapper}>
           <View style={[styles.tabButton, styles.activeTab]}>
             <Text style={[styles.tabText, styles.activeTabText]}>Rating</Text>
           </View>
           <View style={styles.tabButton}>
-            <Text
-              style={styles.tabText}
-              onPress={() => router.push('/settings')}
-            >
-      Settings
-    </Text>
-  </View>
-</View>
+            <Text style={styles.tabText} onPress={() => router.push('/settings')}>
+              Settings
+            </Text>
+          </View>
+        </View>
 
-
+        {/* Km */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Km</Text>
           <BarChart
-            data={{
-              labels: weeklyStats.labels,
-              datasets: [{ data: weeklyStats.km }],
-            }}
+            data={{ labels: weeklyStats.labels, datasets: [{ data: weeklyStats.km }] }}
             width={screenWidth - 64}
             height={180}
             chartConfig={chartConfig}
@@ -122,14 +132,11 @@ useEffect(() => {
           </Text>
         </View>
 
-        {/* Calorie */}
+        {/* Kcal */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Kcal</Text>
           <LineChart
-            data={{
-              labels: weeklyStats.labels,
-              datasets: [{ data: weeklyStats.calories }],
-            }}
+            data={{ labels: weeklyStats.labels, datasets: [{ data: weeklyStats.calories }] }}
             width={screenWidth - 64}
             height={180}
             chartConfig={chartConfig}
@@ -146,10 +153,7 @@ useEffect(() => {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Steps</Text>
           <BarChart
-            data={{
-              labels: weeklyStats.labels,
-              datasets: [{ data: weeklyStats.steps }],
-            }}
+            data={{ labels: weeklyStats.labels, datasets: [{ data: weeklyStats.steps }] }}
             width={screenWidth - 64}
             height={180}
             chartConfig={chartConfig}
@@ -161,17 +165,19 @@ useEffect(() => {
           </Text>
         </View>
       </ScrollView>
-      {storyState === 'none' ? (
-        <BottomNavbar state="start" onPress={() => router.push('/time')} />
-      ) : (
-        <BottomNavbar
-          state={storyState}
-          onPress={() =>
-            setStoryState((prev) => (prev === 'stop' ? 'continue' : 'stop'))
+
+      {/* ✅ Navbar coerente e persistente */}
+      <BottomNavbar
+        state={storyState}
+        onPress={() => {
+          if (storyState === 'start') {
+            router.push('/time'); // inizia la storia
+          } else {
+            setStoryState(prev => (prev === 'stop' ? 'continue' : 'stop')); // toggle ⏸/▶
           }
-        />
-      )}
-      </View>
+        }}
+      />
+    </View>
   );
 }
 
@@ -188,35 +194,24 @@ const chartConfig = {
     stroke: '#ddd',
   },
   propsForLabels: {
-    fontFamily: 'Helvetica', 
+    fontFamily: 'Helvetica',
     fontSize: 12,
   },
 };
 
 const styles = StyleSheet.create({
-  wrapper: {
-    flex: 1,
+  wrapper: { flex: 1, backgroundColor: '#fff' },
+  header: {
+    width: '100%',
+    height: 250,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingTop: 90,
+    marginBottom: 32,
     backgroundColor: '#fff',
   },
-  header: {
-  width: '100%',
-  height: 250, 
-  justifyContent: 'flex-start',
-  alignItems: 'center',
-  paddingTop: 90,     
-  marginBottom: 32,   
-  backgroundColor: '#fff', 
-},
-title: {
-  fontSize: 30,
-  color: 'white',
-  fontWeight: 'bold',
-  textAlign: 'center',
-},
-  container: {
-    alignItems: 'center',
-    paddingBottom: 150,
-  },
+  title: { fontSize: 30, color: 'white', fontWeight: 'bold', textAlign: 'center' },
+  container: { alignItems: 'center', paddingBottom: 150 },
   card: {
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -231,63 +226,25 @@ title: {
     shadowRadius: 4,
     elevation: 3,
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 10,
+  cardTitle: { fontSize: 18, fontWeight: '600', marginBottom: 10 },
+  cardFooter: { marginTop: 10, fontSize: 14, textAlign: 'center', color: '#555' },
+  chart: { borderRadius: 12 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 12, fontSize: 16, color: '#444' },
+  tabButtonsWrapper: { flexDirection: 'row', justifyContent: 'center', marginTop: 12, marginBottom: 20 },
+  tabButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    borderRadius: 30,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 6,
+    elevation: 5,
   },
-  cardFooter: {
-    marginTop: 10,
-    fontSize: 14,
-    textAlign: 'center',
-    color: '#555',
-  },
-  chart: {
-    borderRadius: 12,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#444',
-  },
-  tabButtonsWrapper: {
-  flexDirection: 'row',
-  justifyContent: 'center',
-  marginTop: 12,
-  marginBottom: 20,
-},
-
-tabButton: {
-  paddingVertical: 12,
-  paddingHorizontal: 32,
-  backgroundColor: '#fff',
-  marginHorizontal: 16,
-  borderRadius: 30,
-  shadowColor: '#000',
-  shadowOpacity: 0.2,
-  shadowOffset: { width: 0, height: 4 },
-  shadowRadius: 6,
-  elevation: 5,
-},
-
-tabText: {
-  fontSize: 18,
-  color: '#333',
-},
-
-activeTab: {
-  backgroundColor: '#fff',
-},
-
-activeTabText: {
-  fontWeight: 'bold',
-  color: '#000',
-},
-
-
+  tabText: { fontSize: 18, color: '#333' },
+  activeTab: { backgroundColor: '#fff' },
+  activeTabText: { fontWeight: 'bold', color: '#000' },
 });

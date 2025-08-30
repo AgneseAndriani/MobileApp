@@ -33,7 +33,16 @@ export default function StoryMapScreen() {
   const [accuracy, setAccuracy] = useState<number>(50);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(true);
-  const [storyState, setStoryState] = useState<'stop' | 'continue'>('stop');
+
+  // ✅ stato navbar persistito
+  const [storyState, setStoryState] = useState<'stop' | 'continue'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('storyState');
+      if (saved === 'stop' || saved === 'continue') return saved;
+    }
+    return 'stop';
+  });
+
   const [isAudioPlaying, setIsAudioPlaying] = useState(true);
 
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -45,6 +54,21 @@ export default function StoryMapScreen() {
     googleMapsApiKey: 'AIzaSyBjbQDjbaNPKzvwmJ3lfKYUGh2JXrVfg5s',
     libraries: ['places'],
   });
+
+  // ✅ ogni cambio di storyState viene salvato
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('storyState', storyState);
+    }
+  }, [storyState]);
+
+  // ✅ rileggi alla mount (nel caso il lazy init avvenga prima che altre pagine lo scrivano)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('storyState');
+      if (saved === 'stop' || saved === 'continue') setStoryState(saved);
+    }
+  }, []);
 
   useEffect(() => {
     if (story && points && questions) {
@@ -62,6 +86,12 @@ export default function StoryMapScreen() {
         questions: parsedQuestions,
       };
       sessionStorage.setItem('activeStory', JSON.stringify(completeStory));
+
+      // ✅ storia attiva: se non esiste uno stato salvato, imposta 'stop'
+      const saved = sessionStorage.getItem('storyState');
+      if (saved !== 'stop' && saved !== 'continue') {
+        setStoryState('stop');
+      }
     } else {
       const stored = sessionStorage.getItem('activeStory');
       if (stored) {
@@ -70,6 +100,12 @@ export default function StoryMapScreen() {
           setParsedStory(parsed);
           setParsedPoints(parsed.points ?? []);
           setParsedQuestions(parsed.questions ?? []);
+
+          // ✅ se rientri qui con storia già attiva, assicurati di non restare senza stato
+          const saved = sessionStorage.getItem('storyState');
+          if (saved !== 'stop' && saved !== 'continue') {
+            setStoryState('stop');
+          }
         } catch (err) {
           console.error('Errore nel parsing di activeStory:', err);
         }
@@ -87,91 +123,87 @@ export default function StoryMapScreen() {
     setStoryState((prev) => (prev === 'stop' ? 'continue' : 'stop'));
   };
 
-
-
-
   const handleStoryCompletion = async () => {
-  try {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const userId = user.id;
+      const storyId = parsedStory?.id;
+
+      if (!storyId || !userId) {
+        console.warn('Missing storyId or userId');
+        return;
+      }
+
+      const response = await fetch('http://127.0.0.1:5000/complete-story', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          story_id: storyId,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        console.log('✅ Storia registrata come completata');
+      } else {
+        console.warn('⚠️ Errore nella registrazione:', result.message);
+      }
+    } catch (error) {
+      console.error('❌ Errore durante la POST:', error);
+    }
+  };
+
+  const updateGoalProgress = async (goalName: string, progress: number, completed = false) => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const response = await fetch(`http://127.0.0.1:5000/goals/${goalName}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id,
+          progress,
+          completed,
+        }),
+      });
+
+      const result = await response.json();
+      if (response.ok && result.success) {
+        console.log(' Goal "${goalName}" aggiornato');
+      } else {
+        console.warn(' Errore aggiornando il goal ${goalName}:', result.message);
+      }
+    } catch (err) {
+      console.error('Errore aggiornamento goal:', err);
+    }
+  };
+
+  const handleExit = async () => {
+    await handleStoryCompletion(); // registra la storia completata
+
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const userId = user.id;
-    const storyId = parsedStory?.id;
 
-    if (!storyId || !userId) {
-      console.warn('Missing storyId or userId');
-      return;
+    if (parsedStory && userId) {
+      const km = parsedStory.km || 0;
+      const duration = parsedStory.duration || 0;
+      const steps = parsedStory.steps || 0;
+
+      await updateGoalProgress('first_story', 1, true);
+      await updateGoalProgress('walk_5km', km, km >= 5);
+      await updateGoalProgress('monthly_steps_20000', steps, false);
+      if (duration >= 60) {
+        await updateGoalProgress('long_story_60min', duration, true);
+      }
     }
 
-    const response = await fetch('http://127.0.0.1:5000/complete-story', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        user_id: userId,
-        story_id: storyId,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (response.ok && result.success) {
-      console.log('✅ Storia registrata come completata');
-    } else {
-      console.warn('⚠️ Errore nella registrazione:', result.message);
-    }
-  } catch (error) {
-    console.error('❌ Errore durante la POST:', error);
-  }
-};
-
-const updateGoalProgress = async (goalName: string, progress: number, completed = false) => {
-  try {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const response = await fetch(`http://127.0.0.1:5000/goals/${goalName}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        user_id: user.id,
-        progress,
-        completed,
-      }),
-    });
-
-    const result = await response.json();
-    if (response.ok && result.success) {
-      console.log(`🎯 Goal "${goalName}" aggiornato`);
-    } else {
-      console.warn(`⚠️ Errore aggiornando il goal ${goalName}:`, result.message);
-    }
-  } catch (err) {
-    console.error('❌ Errore aggiornamento goal:', err);
-  }
-};
-
-const handleExit = async () => {
-  await handleStoryCompletion(); // registra la storia completata
-
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const userId = user.id;
-
-  if (parsedStory && userId) {
-    const km = parsedStory.km || 0;
-    const duration = parsedStory.duration || 0;
-    const steps = parsedStory.steps || 0;
-
-    await updateGoalProgress('first_story', 1, true);
-    await updateGoalProgress('walk_5km', km, km >= 5);
-    await updateGoalProgress('monthly_steps_20000', steps, false);
-    if (duration >= 60) {
-      await updateGoalProgress('long_story_60min', duration, true);
-    }
-  }
-
-  sessionStorage.removeItem('activeStory');
-  router.push('/home');
-};
-
-
+    sessionStorage.removeItem('activeStory');
+    sessionStorage.removeItem('storyState'); // ✅ pulisci anche lo stato del bottone
+    router.push('/home');
+  };
 
   useEffect(() => {
     if (Platform.OS === 'web' && 'geolocation' in navigator) {
@@ -281,26 +313,22 @@ const handleExit = async () => {
             <Text style={styles.title}>{parsedStory?.title}</Text>
             <Text style={styles.intro}>{parsedStory?.intro}</Text>
             <Text style={styles.theme}>{parsedStory?.theme}</Text>
-            <Pressable
-              onPress={handleExit}
-              style={[styles.exitButton, { top: expanded ? windowHeight * 0.3 + 80 : 80 }]}
-            >
-              <Text style={styles.exitText}>Finish</Text>
-            </Pressable>
           </ScrollView>
         )}
 
-        <View style={styles.audioControls}>
+        <View style={styles.topControls}>
           <Pressable onPress={toggleAudio} style={[styles.audioButton, isAudioPlaying && styles.active]}>
             <Ionicons name="volume-high" size={20} color={isAudioPlaying ? 'white' : '#666'} />
           </Pressable>
           <Pressable onPress={toggleAudio} style={[styles.audioButton, !isAudioPlaying && styles.active]}>
             <Ionicons name="volume-mute" size={20} color={!isAudioPlaying ? 'white' : '#666'} />
           </Pressable>
+          <Pressable onPress={handleExit} style={styles.endButton}>
+            <Text style={styles.endText}>End Story</Text>
+          </Pressable>
         </View>
-      </View>
 
-      
+      </View>
 
       <BottomNavbar state={storyState} onPress={handleStoryStateToggle} />
     </View>
@@ -384,30 +412,45 @@ const styles = StyleSheet.create({
     gap: 8,
     zIndex: 20,
   },
-  audioButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#eee',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  active: {
-    backgroundColor: '#D84171',
-  },
-  exitButton: {
-    position: 'absolute',
-    left: '50%',
-    transform: [{ translateX: 60 }],
-    backgroundColor: '#D84171',
-    paddingVertical: 8,
-    paddingHorizontal: 24,
-    borderRadius: 15,
-    zIndex: 15,
-  },
-  exitText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
+
+  // Sostituisce audioControls
+topControls: {
+  position: 'absolute',
+  top: 6,
+  right: 6,
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8,            // spazio tra i bottoni
+  zIndex: 20,
+},
+
+audioButton: {
+  width: 32,
+  height: 32,
+  borderRadius: 16,
+  backgroundColor: '#eee',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+
+active: {
+  backgroundColor: '#D84171',
+},
+
+// Nuovo bottone "End Story"
+endButton: {
+  height: 32,
+  borderRadius: 16,
+  paddingHorizontal: 12,  // abbastanza spazio per il testo
+  backgroundColor: '#D84171',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+
+endText: {
+  color: 'white',
+  fontSize: 14,
+  fontWeight: 'bold',
+},
+
 });

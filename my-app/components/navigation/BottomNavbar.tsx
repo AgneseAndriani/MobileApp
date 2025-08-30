@@ -24,22 +24,35 @@ export default function BottomNavbar({ state, onPress }: Props) {
     }
   };
 
-  const getBadgeText = () => {
+  const getBadgeLabel = () => {
     switch (state) {
       case 'start':
         return 'Start your story!';
       case 'stop':
-        return 'Stop';
+        return '▶';
       case 'continue':
-        return 'Continue';
+        return '⏸';
     }
   };
 
   return (
     <View style={styles.container}>
-      <Pressable style={[styles.badge, getBadgeStyle()]} onPress={onPress}>
-        <Text style={styles.badgeText}>{getBadgeText()}</Text>
-      </Pressable>
+      <Pressable
+      style={[styles.badge, getBadgeStyle()]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={
+        state === 'start'
+          ? 'Start your story'
+          : state === 'continue'
+          ? 'Play'
+          : 'Pause'
+      }
+    >
+      <Text style={[styles.badgeText, state !== 'start' && styles.badgeIcon]}>
+        {getBadgeLabel()}
+      </Text>
+    </Pressable>
 
       <View style={styles.navbar}>
         <NavButton
@@ -78,7 +91,7 @@ export default function BottomNavbar({ state, onPress }: Props) {
         />
 
         <NavButton
-          active={pathname === '/profile'}
+          active={pathname === '/profile' || pathname === '/settings'}
           defaultSrc={require('@/assets/images/profile.jpg')}
           activeSrc={require('@/assets/images/profile_pressed.png')}
           onPress={() => router.push('/profile')}
@@ -123,6 +136,11 @@ const styles = StyleSheet.create({
   badgeText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+  // Aggiunto: font più grande quando mostriamo i simboli
+  badgeIcon: {
+    fontSize: 18, // puoi aumentare se vuoi
+    lineHeight: 22,
   },
   navbar: {
     flexDirection: 'row',
