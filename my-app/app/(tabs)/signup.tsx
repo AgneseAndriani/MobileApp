@@ -8,17 +8,19 @@ import {
   StyleSheet,
   Pressable,
   ImageBackground,
+  Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router'; 
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import LayoutWrapper from '@/components/LayoutWrapper';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from 'react-native-responsive-screen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const RegisterScreen = () => {
-  const router = useRouter(); 
+  const router = useRouter();
 
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -33,12 +35,12 @@ const RegisterScreen = () => {
   const total_steps = 0;
 
   const handleRegister = async () => {
-    if (!email || !username) {
-      alert('Please fill in all required fields');
+    if (!email || !username || !password || !confirmPassword) {
+      Alert.alert('Compila tutti i campi obbligatori');
       return;
     }
     if (password !== confirmPassword) {
-      alert('Passwords do not match');
+      Alert.alert('Le password non coincidono');
       return;
     }
     try {
@@ -49,19 +51,26 @@ const RegisterScreen = () => {
           user: { name, username, email, password, total_km, total_calories, total_steps }
         }),
       });
+
       const data = await response.json();
-    if (data.success) {
-      // Salva l’utente loggato localmente
-      localStorage.setItem('user', JSON.stringify(data.user));
-    }
+
+      
       if (data && data.id) {
-        router.push('/create');
+        await AsyncStorage.setItem('user', JSON.stringify(data));
+        router.push({
+          pathname: '/preferences',
+          params: {
+            userId: String(data.id),     // passiamo l'id
+            returnTo: 'signup',          
+          },
+        });
       } else {
-        alert('Registrazione fallita');
+        Alert.alert('Registrazione fallita');
       }
+
     } catch (error) {
       console.error('Errore durante la registrazione:', error);
-      alert('Errore di rete');
+      Alert.alert('Errore di rete');
     }
   };
 
@@ -69,7 +78,6 @@ const RegisterScreen = () => {
     <LayoutWrapper>
       <SafeAreaView style={styles.container}>
         <ScrollView keyboardShouldPersistTaps="handled">
-          {/* Header con immagine */}
           <ImageBackground
             source={require('@/assets/images/shapes.png')}
             style={styles.header}
@@ -81,7 +89,6 @@ const RegisterScreen = () => {
             </View>
           </ImageBackground>
 
-          {/* Form sotto l'immagine */}
           <View style={styles.formWrapper}>
             <Text style={styles.label}>E-mail</Text>
             <TextInput
@@ -150,7 +157,6 @@ const RegisterScreen = () => {
           </View>
         </ScrollView>
 
-        {/* Bottone Indietro */}
         <Pressable style={styles.backButton} onPress={() => router.push('/')}>
           <Ionicons name="arrow-back" size={wp('6%')} color="white" />
         </Pressable>
@@ -161,62 +167,27 @@ const RegisterScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  header: {
-    width: '100%',
-    height: hp('50%'),
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  headerImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  overlay: {
-    position: 'absolute',
-    top: hp('15%'),
-    width: '100%',
-    alignItems: 'center',
-  },
+  header: { width: '100%', height: hp('50%'), justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  headerImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  overlay: { position: 'absolute', top: hp('15%'), width: '100%', alignItems: 'center' },
   title: { color: '#fff', fontSize: wp('8%'), fontWeight: '700' },
   subtitle: { color: '#fff', fontSize: wp('4.5%'), marginTop: hp('1%') },
-  formWrapper: {
-    width: wp('80%'),
-    alignSelf: 'center',
-    marginVertical: hp('5%'),    
-  },
+  formWrapper: { width: wp('80%'), alignSelf: 'center', marginVertical: hp('5%') },
   label: { color: '#000', fontSize: wp('4%'), marginBottom: hp('0.5%') },
   input: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#5D9C3F',
-    paddingVertical: hp('1%'),
-    fontSize: wp('4%'),
-    color: '#333',
-    marginBottom: hp('2%'),
+    borderBottomWidth: 1, borderBottomColor: '#5D9C3F', paddingVertical: hp('1%'),
+    fontSize: wp('4%'), color: '#333', marginBottom: hp('2%')
   },
   passwordWrapper: { position: 'relative' },
   eyeIcon: { position: 'absolute', right: wp('2%'), top: hp('1.8%') },
   nextButton: {
-    backgroundColor: '#5D9C3F',
-    paddingVertical: hp('1.2%'),
-    width: wp('30%'),
-    alignSelf: 'flex-end',
-    borderRadius: wp('3%'),
-    alignItems: 'center',
-    marginTop: hp('2%'),
+    backgroundColor: '#5D9C3F', paddingVertical: hp('1.2%'), width: wp('30%'),
+    alignSelf: 'flex-end', borderRadius: wp('3%'), alignItems: 'center', marginTop: hp('2%'),
   },
   nextText: { color: '#fff', fontSize: wp('4%'), fontWeight: '600' },
   backButton: {
-    position: 'absolute',
-    bottom: hp('3%'),
-    alignSelf: 'center',
-    width: wp('10%'),
-    height: wp('10%'),
-    backgroundColor: '#5D9C3F',
-    borderRadius: wp('5%'),
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: 'absolute', bottom: hp('3%'), alignSelf: 'center', width: wp('10%'), height: wp('10%'),
+    backgroundColor: '#5D9C3F', borderRadius: wp('5%'), justifyContent: 'center', alignItems: 'center',
   },
 });
 

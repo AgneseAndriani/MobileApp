@@ -71,15 +71,28 @@ export default function Settings() {
 
         {/* Options List */}
         <View style={styles.optionsContainer}>
-          {OPTIONS.map((item, index) => (
-            <Pressable key={index} style={styles.optionItem}>
-              <View style={styles.optionLeft}>
-                {item.icon}
-                <Text style={styles.optionText}>{item.label}</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color="#999" />
-            </Pressable>
-          ))}
+            {OPTIONS.map((item, index) => {
+              const handlePress = () => {
+                switch (item.label) {
+                  case 'Account':
+                    router.push('/account');
+                    return;
+                  // aggiungi qui altre navigazioni quando ti servono
+                  default:
+                    return;
+                }
+              };
+
+            return (
+              <Pressable key={index} style={styles.optionItem} onPress={handlePress}>
+                <View style={styles.optionLeft}>
+                  {item.icon}
+                  <Text style={styles.optionText}>{item.label}</Text>
+                </View>
+                <Feather name="chevron-right" size={20} color="#999" />
+              </Pressable>
+            );
+        })}
 
           {/* Logout */}
           <Pressable

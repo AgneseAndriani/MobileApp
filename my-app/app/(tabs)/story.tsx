@@ -34,7 +34,6 @@ export default function StoryMapScreen() {
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(true);
 
-  // ✅ stato navbar persistito
   const [storyState, setStoryState] = useState<'stop' | 'continue'>(() => {
     if (typeof window !== 'undefined') {
       const saved = sessionStorage.getItem('storyState');
@@ -55,14 +54,13 @@ export default function StoryMapScreen() {
     libraries: ['places'],
   });
 
-  // ✅ ogni cambio di storyState viene salvato
+  // ogni cambio di storyState viene salvato
   useEffect(() => {
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('storyState', storyState);
     }
   }, [storyState]);
 
-  // ✅ rileggi alla mount (nel caso il lazy init avvenga prima che altre pagine lo scrivano)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = sessionStorage.getItem('storyState');
@@ -87,7 +85,7 @@ export default function StoryMapScreen() {
       };
       sessionStorage.setItem('activeStory', JSON.stringify(completeStory));
 
-      // ✅ storia attiva: se non esiste uno stato salvato, imposta 'stop'
+      // storia attiva: se non esiste uno stato salvato, imposta 'stop'
       const saved = sessionStorage.getItem('storyState');
       if (saved !== 'stop' && saved !== 'continue') {
         setStoryState('stop');
@@ -101,7 +99,6 @@ export default function StoryMapScreen() {
           setParsedPoints(parsed.points ?? []);
           setParsedQuestions(parsed.questions ?? []);
 
-          // ✅ se rientri qui con storia già attiva, assicurati di non restare senza stato
           const saved = sessionStorage.getItem('storyState');
           if (saved !== 'stop' && saved !== 'continue') {
             setStoryState('stop');
@@ -201,7 +198,7 @@ export default function StoryMapScreen() {
     }
 
     sessionStorage.removeItem('activeStory');
-    sessionStorage.removeItem('storyState'); // ✅ pulisci anche lo stato del bottone
+    sessionStorage.removeItem('storyState'); 
     router.push('/home');
   };
 

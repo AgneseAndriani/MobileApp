@@ -1,4 +1,3 @@
-// components/BottomNavbar.tsx
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
@@ -91,7 +90,7 @@ export default function BottomNavbar({ state, onPress }: Props) {
         />
 
         <NavButton
-          active={pathname === '/profile' || pathname === '/settings'}
+          active={pathname === '/profile' || pathname === '/settings' || pathname === '/account'}
           defaultSrc={require('@/assets/images/profile.jpg')}
           activeSrc={require('@/assets/images/profile_pressed.png')}
           onPress={() => router.push('/profile')}
@@ -137,9 +136,8 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
   },
-  // Aggiunto: font più grande quando mostriamo i simboli
   badgeIcon: {
-    fontSize: 18, // puoi aumentare se vuoi
+    fontSize: 18,
     lineHeight: 22,
   },
   navbar: {

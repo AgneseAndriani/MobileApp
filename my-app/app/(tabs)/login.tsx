@@ -64,7 +64,7 @@ export default function LoginScreen() {
 
           {/* Form sotto l'immagine */}
           <View style={styles.formWrapper}>
-            <Text style={styles.label}>Username or E-mail</Text>
+            <Text style={styles.label}>E-mail</Text>
             <TextInput
               style={styles.input}
               placeholder="email@example.com"

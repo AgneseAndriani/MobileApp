@@ -14,7 +14,7 @@ export default function HomeWebMapScreen() {
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [accuracy, setAccuracy] = useState<number>(50); // valore iniziale fallback
   const mapRef = useRef<google.maps.Map | null>(null);
-  const markerRef = useRef<google.maps.Marker | null>(null);
+  const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const circleRef = useRef<google.maps.Circle | null>(null);
 
   const { isLoaded } = useJsApiLoader({

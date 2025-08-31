@@ -36,7 +36,7 @@ export default function PointsScreen() {
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [accuracy, setAccuracy] = useState<number>(50);
 
-  // ✅ stato badge persistente, come in StoryMapScreen
+  // stato badge persistente
   const [navbarState, setNavbarState] = useState<'start' | 'stop' | 'continue'>(() => {
     if (typeof window !== 'undefined') {
       const saved = sessionStorage.getItem('storyState');
@@ -48,7 +48,7 @@ export default function PointsScreen() {
     return 'start';
   });
 
-  // ✅ sincronizza sempre sullo storage
+  // sincronizza sempre sullo storage
   useEffect(() => {
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('storyState', navbarState);
@@ -73,7 +73,7 @@ export default function PointsScreen() {
         setPoints(parsed.points ?? []);
         setQuestions(parsed.questions ?? []);
         setStoryStarted(true);
-        // ✅ se entri qui con storia attiva e lo stato è 'start', portalo a 'stop'
+        // se entri qui con storia attiva e lo stato è 'start', portalo a 'stop'
         setNavbarState(prev => (prev === 'start' ? 'stop' : prev));
       } else {
         setStoryStarted(false);
@@ -238,7 +238,7 @@ export default function PointsScreen() {
         />
       </View>
 
-      {/* ✅ Navbar coerente e persistente */}
+      {/* Navbar */}
       <BottomNavbar
         state={navbarState}
         onPress={() => {
@@ -246,7 +246,7 @@ export default function PointsScreen() {
             router.push('/time'); // inizia la storia
           } else {
             const next = navbarState === 'stop' ? 'continue' : 'stop';
-            setNavbarState(next); // toggle ⏸/▶ senza cambiare pagina
+            setNavbarState(next); 
           }
         }}
       />
