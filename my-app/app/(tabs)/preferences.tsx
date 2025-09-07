@@ -90,9 +90,16 @@ export default function PreferencesScreen() {
         const cameFromSignup = returnTo === 'signup' || returnTo === '/signup';
 
         if (cameFromSignup) {
-          router.replace('/create');
+          router.replace({
+            pathname: '/pointsOfInterest',
+            params: {
+              userId: String(userId),
+              returnTo: '/preferences',
+            },
+          });
           return;
         }
+
         if (typeof returnTo === 'string' && returnTo.length > 0) {
           router.replace(returnTo);
           return;
@@ -102,7 +109,6 @@ export default function PreferencesScreen() {
           return;
         }
         router.replace('/account');
-
       } else {
         Alert.alert('Salvataggio non riuscito', data?.message || 'Riprova più tardi');
       }
@@ -136,19 +142,24 @@ export default function PreferencesScreen() {
         resizeMode="cover"
       >
         <View style={styles.overlay}>
+          {/* Titolo */}
           <Text style={styles.title}>
             Choose your{'\n'}preferred story{'\n'}genres
           </Text>
 
-          <FlatList
-            data={genreOptions}
-            renderItem={renderGenre}
-            keyExtractor={item => item}
-            numColumns={2}
-            columnWrapperStyle={styles.row}
-            contentContainerStyle={styles.genresWrapper}
-          />
+          {/* Lista scrollabile tra titolo e frecce */}
+          <View style={styles.listContainer}>
+            <FlatList
+              data={genreOptions}
+              renderItem={renderGenre}
+              keyExtractor={item => item}
+              numColumns={2}
+              columnWrapperStyle={styles.row}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
 
+          {/* Frecce in basso */}
           <View style={styles.buttonRow}>
             <Pressable style={styles.button} onPress={() => router.back()}>
               <Ionicons name="arrow-back" size={24} color="white" />
@@ -173,31 +184,46 @@ export default function PreferencesScreen() {
 
 const styles = StyleSheet.create({
   background: { flex: 1, width: '100%', height: '100%' },
-  overlay: { flex: 1, alignItems: 'center', paddingTop: hp('12%'), paddingHorizontal: wp('10%') },
+  overlay: {
+    flex: 1,
+    alignItems: 'center',
+    paddingTop: hp('12%'),
+    paddingHorizontal: wp('10%'),
+  },
   title: {
     fontSize: wp('7%'),
     color: '#fff',
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: hp('5%'),
+    marginBottom: hp('3%'),
   },
-  genresWrapper: { justifyContent: 'center' },
+  listContainer: {
+    flex: 1, // occupa tutto lo spazio tra titolo e frecce
+    width: '100%',
+    marginBottom: hp('10%'), // lascia spazio sopra le frecce
+  },
   row: { justifyContent: 'space-between', marginBottom: hp('2%') },
   genreButton: {
+    flex: 1,
+    marginHorizontal: wp('1.5%'),
     borderWidth: 2,
     borderColor: '#D84171',
-    paddingVertical: hp('1%'),
-    paddingHorizontal: wp('4%'),
+    paddingVertical: hp('1.5%'),
     borderRadius: wp('5%'),
     backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
-    marginHorizontal: wp('2%'),
+    alignItems: 'center',
   },
   genreButtonSelected: { backgroundColor: '#D8D8D8' },
-  genreText: { color: '#D84171', fontWeight: '600', fontSize: wp('4%') },
+  genreText: {
+    color: '#D84171',
+    fontWeight: '600',
+    fontSize: wp('4%'),
+    textAlign: 'center',
+  },
   genreTextSelected: { color: '#333' },
   button: {
     width: wp('12%'),

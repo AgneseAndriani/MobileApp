@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Pressable,
   Alert,
-  RefreshControl,
   ImageBackground,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -17,18 +16,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import BottomNavbar from '@/components/navigation/BottomNavbar';
 
 type User = { id: number; name: string; username: string; email: string; password?: string };
-type Preference = { id: number; user_id: number; genre: string };
+type Preference = { id: number; user_id: number; genre?: string | null; point_of_interest?: string | null };
 
-const API_BASE = 'http://127.0.0.1:5000';
+const API_BASE = 'http://127.0.0.1:5000'; 
 
 export default function AccountScreen() {
   const [user, setUser] = useState<User | null>(null);
   const [prefs, setPrefs] = useState<Preference[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
 
-  // stato navbar
   const [storyState, setStoryState] = useState<'start' | 'stop' | 'continue'>(() => {
     if (typeof window !== 'undefined') {
       const saved = sessionStorage.getItem('storyState');
@@ -41,11 +38,8 @@ export default function AccountScreen() {
 
   useEffect(() => {
     const stored = typeof window !== 'undefined' ? sessionStorage.getItem('activeStory') : null;
-    if (stored) {
-      setStoryState(prev => (prev === 'start' ? 'stop' : prev));
-    } else {
-      setStoryState('start');
-    }
+    if (stored) setStoryState(prev => (prev === 'start' ? 'stop' : prev));
+    else setStoryState('start');
   }, []);
 
   useEffect(() => {
@@ -54,12 +48,11 @@ export default function AccountScreen() {
     }
   }, [storyState]);
 
-  // fetch data riusabile (load + refresh)
   const fetchData = useCallback(async () => {
     try {
       const raw = await AsyncStorage.getItem('user');
       if (!raw) {
-        router.replace('/'); // non loggato
+        router.replace('/');
         return;
       }
       const stored = JSON.parse(raw) as User;
@@ -75,7 +68,7 @@ export default function AccountScreen() {
 
       const pJson = await pRes.json();
       if (pRes.ok && pJson?.success && Array.isArray(pJson.preferences)) {
-        setPrefs(pJson.preferences);
+        setPrefs(pJson.preferences as Preference[]);
       } else {
         setPrefs([]);
       }
@@ -93,9 +86,15 @@ export default function AccountScreen() {
     })();
   }, [fetchData]);
 
-
-  // generi salvati
-  const genres = useMemo(() => prefs.map(p => p.genre), [prefs]);
+  // Split preferenze: generi e punti di interesse
+  const genres = useMemo(
+    () => (prefs || []).map(p => p.genre).filter(Boolean) as string[],
+    [prefs]
+  );
+  const points = useMemo(
+    () => (prefs || []).map(p => p.point_of_interest).filter(Boolean) as string[],
+    [prefs]
+  );
 
   if (loading) {
     return (
@@ -118,9 +117,7 @@ export default function AccountScreen() {
 
   return (
     <View style={styles.wrapper}>
-      <ScrollView
-        contentContainerStyle={styles.container}
-      >
+      <ScrollView contentContainerStyle={styles.container}>
         {/* Header */}
         <ImageBackground
           source={require('@/assets/images/profilo.png')}
@@ -128,15 +125,11 @@ export default function AccountScreen() {
           resizeMode="cover"
         >
           <View style={styles.headerTop}>
-            <Pressable onPress={() => router.back()} style={styles.backIcon}>
+            <Pressable onPress={() => router.push('/settings')} style={styles.backIcon}>
               <Feather name="chevron-left" size={22} color="#333" />
             </Pressable>
-
           </View>
-
           <Text style={styles.title}>Account</Text>
-
-        
         </ImageBackground>
 
         {/* Card dati utente */}
@@ -166,7 +159,7 @@ export default function AccountScreen() {
           </View>
         </View>
 
-        {/* Card preferenze */}
+        {/* Card generi */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Preferred Genres</Text>
           {genres.length === 0 ? (
@@ -181,37 +174,36 @@ export default function AccountScreen() {
             </View>
           )}
 
-          <Pressable style={styles.editBtn} onPress={() => router.push({ pathname: '/preferences', params: {returnTo: '/account'}})}>
+          <Pressable
+            style={styles.editBtn}
+            onPress={() => router.push({ pathname: '/preferences', params: { returnTo: '/account' } })}
+          >
             <Feather name="edit-2" size={14} color="#fff" />
             <Text style={styles.editTxt}>Edit Preferences</Text>
           </Pressable>
         </View>
 
-        {/* Card azioni account */}
+        {/* Card punti di interesse */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Account actions</Text>
-          <View style={{ height: 8 }} />
-          <Pressable
-            style={styles.rowAction}
-            onPress={async () => {
-              try {
-                await AsyncStorage.removeItem('user');
-                if (typeof window !== 'undefined') {
-                  sessionStorage.removeItem('storyState');
-                  sessionStorage.clear();
-                  localStorage?.clear?.();
-                }
-                router.replace('/');
-              } catch (e) {
-                Alert.alert('Errore', 'Impossibile effettuare il logout');
-              }
-            }}
-          >
-            <View style={styles.optionLeft}>
-              <Feather name="log-out" size={18} color="#333" />
-              <Text style={styles.optionText}>Logout</Text>
+          <Text style={styles.sectionTitle}>Preferred Points of Interest</Text>
+          {points.length === 0 ? (
+            <Text style={styles.muted}>No points selected yet.</Text>
+          ) : (
+            <View style={styles.badgesWrap}>
+              {points.map((p, i) => (
+                <View key={`${p}-${i}`} style={styles.badge}>
+                  <Text style={styles.badgeText}>{p}</Text>
+                </View>
+              ))}
             </View>
-            <Feather name="chevron-right" size={18} color="#999" />
+          )}
+
+          <Pressable
+            style={styles.editBtn}
+            onPress={() => router.push({ pathname: '/pointsOfInterest', params: { returnTo: '/account' } })}
+          >
+            <Feather name="edit-2" size={14} color="#fff" />
+            <Text style={styles.editTxt}>Edit Points of Interest</Text>
           </Pressable>
         </View>
 
@@ -223,9 +215,9 @@ export default function AccountScreen() {
         state={storyState}
         onPress={() => {
           if (storyState === 'start') {
-            router.push('/time'); 
+            router.push('/time');
           } else {
-            setStoryState(prev => (prev === 'stop' ? 'continue' : 'stop')); 
+            setStoryState(prev => (prev === 'stop' ? 'continue' : 'stop'));
           }
         }}
       />
@@ -258,11 +250,6 @@ const styles = StyleSheet.create({
   },
 
   backIcon: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#F2F2F2',
-  },
-  refreshIcon: {
     width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#F2F2F2',
@@ -315,7 +302,6 @@ const styles = StyleSheet.create({
   backBtn: { marginTop: 12, backgroundColor: '#5D9C3F', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
   backTxt: { color: '#fff', fontWeight: '600' },
 
- 
   rowAction: {
     flexDirection: 'row',
     justifyContent: 'space-between',

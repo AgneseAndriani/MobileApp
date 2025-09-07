@@ -23,7 +23,6 @@ export default function ProfileStatistics() {
     labels: DAYS_ORDER,
   });
 
-  // ✅ stato badge persistente
   const [storyState, setStoryState] = useState<'start' | 'stop' | 'continue'>(() => {
     if (typeof window !== 'undefined') {
       const saved = sessionStorage.getItem('storyState');
@@ -34,14 +33,14 @@ export default function ProfileStatistics() {
     return 'start';
   });
 
-  // ✅ sincronizza su storage a ogni cambio
+  // sincronizza su storage a ogni cambio
   useEffect(() => {
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('storyState', storyState);
     }
   }, [storyState]);
 
-  // ✅ riallinea all’ingresso (es. se altre pagine hanno cambiato lo stato)
+  // riallinea all’ingresso (es. se altre pagine hanno cambiato lo stato)
   useEffect(() => {
     const stored = sessionStorage.getItem('activeStory');
     if (stored) {
@@ -166,7 +165,6 @@ export default function ProfileStatistics() {
         </View>
       </ScrollView>
 
-      {/* ✅ Navbar coerente e persistente */}
       <BottomNavbar
         state={storyState}
         onPress={() => {
