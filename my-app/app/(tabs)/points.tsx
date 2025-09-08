@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -41,14 +41,12 @@ export default function PointsScreen() {
     if (typeof window !== 'undefined') {
       const saved = sessionStorage.getItem('storyState');
       if (saved === 'start' || saved === 'stop' || saved === 'continue') return saved as any;
-      // se esiste una storia attiva ma nessuno stato salvato, parti da 'stop'
       const hasStory = !!sessionStorage.getItem('activeStory');
       return hasStory ? 'stop' : 'start';
     }
     return 'start';
   });
 
-  // sincronizza sempre sullo storage
   useEffect(() => {
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('storyState', navbarState);
@@ -73,7 +71,6 @@ export default function PointsScreen() {
         setPoints(parsed.points ?? []);
         setQuestions(parsed.questions ?? []);
         setStoryStarted(true);
-        // se entri qui con storia attiva e lo stato è 'start', portalo a 'stop'
         setNavbarState(prev => (prev === 'start' ? 'stop' : prev));
       } else {
         setStoryStarted(false);
@@ -135,6 +132,153 @@ export default function PointsScreen() {
     }
   }, [position, accuracy]);
 
+  // ---- TTS refs/state ----
+  const synthRef = useRef<any>(null);
+  const voiceRef = useRef<any>(null);
+  const chunksRef = useRef<string[]>([]);
+  const idxRef = useRef<number>(0);
+  const lastReadPointIdRef = useRef<number | null>(null);
+
+  // Init TTS + pick English voice
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      synthRef.current = window.speechSynthesis;
+      const pickVoice = () => {
+        const voices = synthRef.current?.getVoices?.() || [];
+        voiceRef.current =
+          voices.find((v: any) => /en-US/i.test(v.lang)) ||
+          voices.find((v: any) => /en-GB/i.test(v.lang)) ||
+          voices.find((v: any) => String(v.lang).toLowerCase().startsWith('en')) ||
+          voices[0] ||
+          null;
+      };
+      pickVoice();
+      window.speechSynthesis.onvoiceschanged = pickVoice;
+    }
+    return () => {
+      try { synthRef.current?.cancel(); } catch {}
+      if (typeof window !== 'undefined') {
+        (window.speechSynthesis as any).onvoiceschanged = null;
+      }
+    };
+  }, []);
+
+  // ---- Punto visibile (memo) ----
+  const nextVisiblePoint = useMemo(() => {
+    if (!position) return null;
+    const sorted = [...points].sort((a, b) => a.point_id - b.point_id);
+    const nextPoint = sorted.find((p) => p.completed !== 1);
+    if (!nextPoint) return null;
+    const distance = getDistance(position.lat, position.lng, Number(nextPoint.latitude), Number(nextPoint.longitude));
+    return distance <= 50 ? nextPoint : null;
+  }, [points, position, accuracy]);
+
+  // ---- Helpers TTS ----
+  function splitIntoChunks(text: string) {
+    if (!text) return [];
+    const sentences = text.split(/(?<=[.!?])\s+/);
+    const MAX = 260;
+    const packed: string[] = [];
+    for (const s of sentences) {
+      if (!s) continue;
+      if (!packed.length) packed.push(s);
+      else {
+        const last = packed[packed.length - 1];
+        if ((last + ' ' + s).length <= MAX) packed[packed.length - 1] = last + ' ' + s;
+        else packed.push(s);
+      }
+    }
+    return packed;
+  }
+
+  function buildPointSpeech(point: any, qlist: any[]) {
+    const parts: string[] = [];
+    if (point?.text) parts.push(String(point.text));           // descrizione del punto
+
+    qlist.forEach((q) => {
+      if (q?.question) parts.push(String(q.question));
+      const answers = [q.first_answer, q.second_answer, q.third_answer].filter(Boolean);
+      answers.forEach((a, idx) => {
+        const letter = String.fromCharCode(65 + idx); // A/B/C
+        parts.push(`${letter}. ${a}`);
+      });
+    });
+
+    return parts.join(' ');
+  }
+
+  function speakChunkAt(i: number) {
+    const synth = synthRef.current;
+    const chunks = chunksRef.current;
+    if (!synth || !chunks?.length) return;
+    if (i < 0 || i >= chunks.length) return;
+
+    synth.cancel(); // interrompi eventuale utterance in corso
+
+    const u = new SpeechSynthesisUtterance(chunks[i]);
+    u.lang = 'en-GB'; 
+    if (voiceRef.current) u.voice = voiceRef.current;
+    u.rate = 1;
+    u.pitch = 1;
+    u.volume = 1;
+
+    u.onend = () => {
+      if (navbarState === 'continue') {
+        const next = i + 1;
+        if (next < chunks.length) {
+          idxRef.current = next;
+          speakChunkAt(next);
+        }
+      }
+    };
+
+    synth.speak(u);
+  }
+
+  function speakText(text: string) {
+    chunksRef.current = splitIntoChunks(text);
+    idxRef.current = 0;
+    speakChunkAt(0);
+  }
+
+  // ---- Avvia lettura quando appare un nuovo punto visibile in continue ----
+  useEffect(() => {
+    if (!nextVisiblePoint || navbarState !== 'continue') return;
+
+    const alreadyRead = lastReadPointIdRef.current === Number(nextVisiblePoint.point_id);
+    const relatedQuestions = questions.filter(
+      (q) => Number(q.point_id) === Number(nextVisiblePoint.point_id)
+    );
+
+    // Se è un nuovo punto o non stiamo parlando, leggi il testo del punto
+    if (!alreadyRead || !synthRef.current?.speaking) {
+      const speech = buildPointSpeech(nextVisiblePoint, relatedQuestions);
+      lastReadPointIdRef.current = Number(nextVisiblePoint.point_id);
+      speakText(speech);
+    }
+  }, [nextVisiblePoint, navbarState, questions]);
+
+  // ---- Navbar stop/continue → pausa/riprendi senza ricominciare ----
+  useEffect(() => {
+    const synth = synthRef.current;
+    if (!synth) return;
+
+    if (navbarState === 'continue') {
+      if (synth.paused) synth.resume();
+      // se non sta parlando e c'è un punto visibile, avvia
+      else if (!synth.speaking && nextVisiblePoint) {
+        const relatedQuestions = questions.filter(
+          (q) => Number(q.point_id) === Number(nextVisiblePoint.point_id)
+        );
+        const speech = buildPointSpeech(nextVisiblePoint, relatedQuestions);
+        lastReadPointIdRef.current = Number(nextVisiblePoint.point_id);
+        speakText(speech);
+      }
+    } else if (navbarState === 'stop') {
+      if (synth.speaking && !synth.paused) synth.pause();
+    }
+  }, [navbarState, nextVisiblePoint, questions]);
+
   const handleSelectAnswer = (questionKey: string, answerIndex: number) => {
     setSelectedAnswers((prev) => ({ ...prev, [questionKey]: answerIndex }));
   };
@@ -151,15 +295,6 @@ export default function PointsScreen() {
       console.error('Errore aggiornamento punto:', err);
     }
   };
-
-  const visiblePoints = (() => {
-    if (!position) return [];
-    const sorted = [...points].sort((a, b) => a.point_id - b.point_id);
-    const nextPoint = sorted.find((p) => p.completed !== 1);
-    if (!nextPoint) return [];
-    const distance = getDistance(position.lat, position.lng, Number(nextPoint.latitude), Number(nextPoint.longitude));
-    return distance <= 50 ? [nextPoint] : [];
-  })();
 
   if (!isLoaded) {
     return (
@@ -186,7 +321,7 @@ export default function PointsScreen() {
 
       <View style={styles.overlayContent}>
         <FlatList
-          data={storyStarted ? visiblePoints : []}
+          data={storyStarted && nextVisiblePoint ? [nextVisiblePoint] : []}
           keyExtractor={(item, index) => (item?.point_id ?? index).toString()}
           renderItem={({ item }) => {
             const relatedQuestions = questions.filter(
@@ -246,7 +381,7 @@ export default function PointsScreen() {
             router.push('/time'); // inizia la storia
           } else {
             const next = navbarState === 'stop' ? 'continue' : 'stop';
-            setNavbarState(next); 
+            setNavbarState(next);
           }
         }}
       />
@@ -255,92 +390,32 @@ export default function PointsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    position: 'relative',
-  },
-  overlayContent: {
-    position: 'absolute',
-    top: 20,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  container: { flex: 1, position: 'relative' },
+  overlayContent: { position: 'absolute', top: 20, left: 0, right: 0, paddingHorizontal: 16 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   encouragementBox: {
-    position: 'absolute',
-    top: 40,
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    padding: 20,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-    zIndex: 10,
+    position: 'absolute', top: 40, left: 20, right: 20,
+    backgroundColor: 'rgba(255,255,255,0.95)', padding: 20, borderRadius: 20,
+    shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6, zIndex: 10,
   },
-  encouragementText: {
-    fontSize: 18,
-    textAlign: 'center',
-    color: '#333',
-    fontWeight: '600',
-  },
+  encouragementText: { fontSize: 18, textAlign: 'center', color: '#333', fontWeight: '600' },
   pointBox: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 24,
-    borderColor: '#D84171',
-    borderWidth: 2,
+    backgroundColor: 'white', borderRadius: 20, padding: 24, marginBottom: 24,
+    borderColor: '#D84171', borderWidth: 2,
   },
-  pointHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  pointTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  pointText: {
-    fontSize: 18,
-    color: '#000',
-    marginBottom: 12,
-  },
-  question: {
-    fontSize: 16,
-    color: '#fff',
-    marginTop: 10,
-    marginBottom: 6,
-  },
+  pointHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  pointTitle: { fontSize: 22, fontWeight: 'bold' },
+  pointText: { fontSize: 18, color: '#000', marginBottom: 12 },
+  question: { fontSize: 18, color: '#000', marginTop: 10, marginBottom: 8 },
   answerOption: {
-    fontSize: 16,
-    color: '#fff',
-    backgroundColor: '#888',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 24,
-    marginBottom: 10,
-    marginLeft: 12,
-    marginRight: 12,
+    fontSize: 16, color: '#fff', backgroundColor: '#888',
+    paddingVertical: 12, paddingHorizontal: 16, borderRadius: 24,
+    marginBottom: 10, marginLeft: 12, marginRight: 12,
   },
-  selectedAnswer: {
-    backgroundColor: '#D84171',
-    fontWeight: 'bold',
-  },
+  selectedAnswer: { backgroundColor: '#D84171', fontWeight: 'bold' },
   doneButton: {
-    backgroundColor: '#5D9C3F',
-    color: 'white',
-    fontWeight: 'bold',
-    textAlign: 'center',
-    paddingVertical: 10,
-    marginTop: 16,
-    borderRadius: 20,
+    backgroundColor: '#5D9C3F', color: 'white', fontWeight: 'bold',
+    textAlign: 'center', paddingVertical: 10, marginTop: 16, borderRadius: 20,
   },
 });

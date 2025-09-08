@@ -17,12 +17,18 @@ import BottomNavbar from '@/components/navigation/BottomNavbar';
 const windowHeight = Dimensions.get('window').height;
 const windowWidth = Dimensions.get('window').width;
 
-const containerStyle = {
-  width: '100%',
-  height: '100%',
-};
+const containerStyle = { width: '100%', height: '100%' };
 
 export default function StoryMapScreen() {
+  // ---- TTS refs (NO utteranceRef) ----
+  const synthRef = useRef<any>(null);
+  const voiceRef = useRef<any>(null);
+  const chunksRef = useRef<string[]>([]);
+  const idxRef = useRef<number>(0);
+
+  const storyStateRef = useRef<'stop' | 'continue'>('stop');
+  const isAudioPlayingRef = useRef<boolean>(true);
+
   const { story, points, questions } = useLocalSearchParams();
   const [parsedStory, setParsedStory] = useState<any>(null);
   const [parsedPoints, setParsedPoints] = useState<any[]>([]);
@@ -41,8 +47,10 @@ export default function StoryMapScreen() {
     }
     return 'stop';
   });
+  storyStateRef.current = storyState;
 
   const [isAudioPlaying, setIsAudioPlaying] = useState(true);
+  isAudioPlayingRef.current = isAudioPlaying;
 
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
@@ -54,13 +62,40 @@ export default function StoryMapScreen() {
     libraries: ['places'],
   });
 
-  // ogni cambio di storyState viene salvato
+  
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      synthRef.current = window.speechSynthesis;
+
+      const pickVoice = () => {
+        const voices = synthRef.current?.getVoices?.() || [];
+        voiceRef.current =
+          voices.find((v: any) => /en-US/i.test(v.lang)) ||
+          voices.find((v: any) => /en-GB/i.test(v.lang)) ||
+          voices.find((v: any) => String(v.lang).toLowerCase().startsWith('en')) ||
+          voices[0] ||
+          null;
+      };
+
+      pickVoice();
+      window.speechSynthesis.onvoiceschanged = pickVoice;
+    }
+    return () => {
+      try { synthRef.current?.cancel(); } catch {}
+      if (typeof window !== 'undefined') {
+        window.speechSynthesis.onvoiceschanged = null as any;
+      }
+    };
+  }, []);
+
+  // salva storyState
   useEffect(() => {
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('storyState', storyState);
     }
   }, [storyState]);
 
+  // ripristina storyState
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = sessionStorage.getItem('storyState');
@@ -68,28 +103,22 @@ export default function StoryMapScreen() {
     }
   }, []);
 
+  // parsing storia
   useEffect(() => {
     if (story && points && questions) {
-      const parsedStory = typeof story === 'string' ? JSON.parse(story) : story;
-      const parsedPoints = typeof points === 'string' ? JSON.parse(points) : [];
-      const parsedQuestions = typeof questions === 'string' ? JSON.parse(questions) : [];
+      const pStory = typeof story === 'string' ? JSON.parse(story) : story;
+      const pPoints = typeof points === 'string' ? JSON.parse(points) : [];
+      const pQuestions = typeof questions === 'string' ? JSON.parse(questions) : [];
 
-      setParsedStory(parsedStory);
-      setParsedPoints(parsedPoints);
-      setParsedQuestions(parsedQuestions);
+      setParsedStory(pStory);
+      setParsedPoints(pPoints);
+      setParsedQuestions(pQuestions);
 
-      const completeStory = {
-        ...parsedStory,
-        points: parsedPoints,
-        questions: parsedQuestions,
-      };
+      const completeStory = { ...pStory, points: pPoints, questions: pQuestions };
       sessionStorage.setItem('activeStory', JSON.stringify(completeStory));
 
-      // storia attiva: se non esiste uno stato salvato, imposta 'stop'
       const saved = sessionStorage.getItem('storyState');
-      if (saved !== 'stop' && saved !== 'continue') {
-        setStoryState('stop');
-      }
+      if (saved !== 'stop' && saved !== 'continue') setStoryState('stop');
     } else {
       const stored = sessionStorage.getItem('activeStory');
       if (stored) {
@@ -100,9 +129,7 @@ export default function StoryMapScreen() {
           setParsedQuestions(parsed.questions ?? []);
 
           const saved = sessionStorage.getItem('storyState');
-          if (saved !== 'stop' && saved !== 'continue') {
-            setStoryState('stop');
-          }
+          if (saved !== 'stop' && saved !== 'continue') setStoryState('stop');
         } catch (err) {
           console.error('Errore nel parsing di activeStory:', err);
         }
@@ -112,79 +139,154 @@ export default function StoryMapScreen() {
     }
   }, [story, points, questions]);
 
-  const toggleAudio = () => {
-    setIsAudioPlaying((prev) => !prev);
+// build chunks
+useEffect(() => {
+  if (!parsedStory) return;
+
+  const combined = combineTitleIntroTheme(parsedStory);
+  chunksRef.current = splitIntoChunks(combined);
+  idxRef.current = 0;
+}, [parsedStory]);
+
+function combineTitleIntroTheme(s: any) {
+  const parts = [s?.title, s?.intro, s?.theme]
+    .map(v => (v ?? '').toString().trim())
+    .filter(Boolean);
+  return parts.join(' ');
+}
+
+
+  function splitIntoChunks(text: string) {
+    if (!text) return [];
+    const sentences = text.split(/(?<=[.!?])\s+/); // split per frase
+    const MAX = 260;
+    const packed: string[] = [];
+    for (const s of sentences) {
+      if (!s) continue;
+      if (!packed.length) packed.push(s);
+      else {
+        const last = packed[packed.length - 1];
+        if ((last + ' ' + s).length <= MAX) packed[packed.length - 1] = last + ' ' + s;
+        else packed.push(s);
+      }
+    }
+    return packed;
+  }
+
+  // parla un chunk all'indice i, con volume opzionale
+  function speakChunkAt(i: number, forceVolume?: number) {
+    const synth = synthRef.current;
+    const chunks = chunksRef.current;
+    if (!synth || !chunks?.length) return;
+    if (i < 0 || i >= chunks.length) return;
+
+    // stoppa quello in corso e riparti dal chunk corrente (non la storia intera)
+    synth.cancel();
+
+    const u = new SpeechSynthesisUtterance(chunks[i]);
+    u.lang = 'en-GB'; // o 'en-GB'
+    u.rate = 1;
+    u.pitch = 1;
+    u.volume = typeof forceVolume === 'number' ? forceVolume : (isAudioPlayingRef.current ? 1 : 0);
+    if (voiceRef.current) u.voice = voiceRef.current;
+
+    u.onend = () => {
+      if (storyStateRef.current === 'continue') {
+        idxRef.current = i + 1;
+        if (idxRef.current < chunks.length) speakChunkAt(idxRef.current);
+      }
+    };
+
+    synth.speak(u);
+  }
+
+  // navbar stop/continue
+  useEffect(() => {
+    const synth = synthRef.current;
+    if (!synth) return;
+
+    if (storyState === 'continue') {
+      // se non sta parlando, inizia dal chunk corrente
+      if (!synth.speaking && chunksRef.current.length) {
+        speakChunkAt(idxRef.current);
+      } else if (synth.paused) {
+        synth.resume();
+      }
+    } else {
+      if (synth.speaking && !synth.paused) synth.pause(); // pausa, mantiene l'indice
+    }
+  }, [storyState]);
+
+  const handleMute = () => {
+    setIsAudioPlaying(false);
+    // pausa (conserva posizione esatta)
+    if (synthRef.current?.speaking && !synthRef.current.paused) {
+      synthRef.current.pause();
+    }
   };
 
-  const handleStoryStateToggle = () => {
-    setStoryState((prev) => (prev === 'stop' ? 'continue' : 'stop'));
+  const handleUnmute = () => {
+    setIsAudioPlaying(true);
+    // se sei in "continue" riprendi dal punto esatto
+    if (storyState === 'continue' && synthRef.current?.paused) {
+      synthRef.current.resume();
+    }
   };
+
+
+  const handleStoryStateToggle = () => {
+    const next = storyState === 'stop' ? 'continue' : 'stop';
+    // legato al gesto utente per avviare TTS
+    if (next === 'continue') {
+      if (synthRef.current?.paused) synthRef.current.resume();
+      else if (!synthRef.current?.speaking && chunksRef.current.length) {
+        speakChunkAt(idxRef.current);
+      }
+    } else {
+      if (synthRef.current?.speaking && !synthRef.current.paused) synthRef.current.pause();
+    }
+    setStoryState(next);
+  };
+
+  const stopTTS = () => {
+    try { synthRef.current?.cancel(); } catch {}
+  };
+
 
   const handleStoryCompletion = async () => {
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const userId = user.id;
       const storyId = parsedStory?.id;
+      if (!storyId || !userId) return;
 
-      if (!storyId || !userId) {
-        console.warn('Missing storyId or userId');
-        return;
-      }
-
-      const response = await fetch('http://127.0.0.1:5000/complete-story', {
+      await fetch('http://127.0.0.1:5000/complete-story', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          story_id: storyId,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, story_id: storyId }),
       });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        console.log('✅ Storia registrata come completata');
-      } else {
-        console.warn('⚠️ Errore nella registrazione:', result.message);
-      }
     } catch (error) {
-      console.error('❌ Errore durante la POST:', error);
+      console.error('Errore durante la POST:', error);
     }
   };
 
   const updateGoalProgress = async (goalName: string, progress: number, completed = false) => {
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const response = await fetch(`http://127.0.0.1:5000/goals/${goalName}`, {
+      await fetch(`http://127.0.0.1:5000/goals/${goalName}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: user.id,
-          progress,
-          completed,
-        }),
+        body: JSON.stringify({ user_id: user.id, progress, completed }),
       });
-
-      const result = await response.json();
-      if (response.ok && result.success) {
-        console.log(' Goal "${goalName}" aggiornato');
-      } else {
-        console.warn(' Errore aggiornando il goal ${goalName}:', result.message);
-      }
     } catch (err) {
       console.error('Errore aggiornamento goal:', err);
     }
   };
 
   const handleExit = async () => {
-    await handleStoryCompletion(); // registra la storia completata
+    await handleStoryCompletion();
 
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user.id;
-
-    if (parsedStory && userId) {
+    if (parsedStory) {
       const km = parsedStory.km || 0;
       const duration = parsedStory.duration || 0;
       const steps = parsedStory.steps || 0;
@@ -192,37 +294,26 @@ export default function StoryMapScreen() {
       await updateGoalProgress('first_story', 1, true);
       await updateGoalProgress('walk_5km', km, km >= 5);
       await updateGoalProgress('monthly_steps_20000', steps, false);
-      if (duration >= 60) {
-        await updateGoalProgress('long_story_60min', duration, true);
-      }
+      if (duration >= 60) await updateGoalProgress('long_story_60min', duration, true);
     }
 
+    stopTTS();
     sessionStorage.removeItem('activeStory');
-    sessionStorage.removeItem('storyState'); 
+    sessionStorage.removeItem('storyState');
     router.push('/home');
   };
 
+  // geoloc
   useEffect(() => {
     if (Platform.OS === 'web' && 'geolocation' in navigator) {
       const watchId = navigator.geolocation.watchPosition(
         (pos) => {
-          const coords = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-          };
+          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
           setPosition(coords);
           setAccuracy(pos.coords.accuracy);
-          console.log(`📍 Lat: ${coords.lat}, Lng: ${coords.lng}, Accuracy: ${pos.coords.accuracy} m`);
         },
-        (err) => {
-          console.error('Geolocation error:', err);
-          setError('Unable to retrieve location.');
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 1000,
-          timeout: 5000,
-        }
+        () => setError('Unable to retrieve location.'),
+        { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
       );
       return () => navigator.geolocation.clearWatch(watchId);
     } else {
@@ -230,6 +321,7 @@ export default function StoryMapScreen() {
     }
   }, []);
 
+  // marker cerchio
   useEffect(() => {
     if (position && mapRef.current) {
       if (!markerRef.current) {
@@ -293,12 +385,10 @@ export default function StoryMapScreen() {
         zoom={16}
         center={position || { lat: 0, lng: 0 }}
         onLoad={(map) => (mapRef.current = map)}
-        options={{
-          disableDefaultUI: false,
-        }}
+        options={{ disableDefaultUI: false }}
       />
 
-      {/* Overlay con storia */}
+      {/* storia */}
       <View style={[styles.overlay, { height: expanded ? windowHeight * 0.3 : 50 }]}>
         <Pressable style={styles.toggle} onPress={() => setExpanded((prev) => !prev)}>
           <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={24} color="#333" />
@@ -314,17 +404,24 @@ export default function StoryMapScreen() {
         )}
 
         <View style={styles.topControls}>
-          <Pressable onPress={toggleAudio} style={[styles.audioButton, isAudioPlaying && styles.active]}>
+          <Pressable
+            onPress={handleUnmute}
+            style={[styles.audioButton, isAudioPlaying && styles.active]}
+          >
             <Ionicons name="volume-high" size={20} color={isAudioPlaying ? 'white' : '#666'} />
           </Pressable>
-          <Pressable onPress={toggleAudio} style={[styles.audioButton, !isAudioPlaying && styles.active]}>
+
+          <Pressable
+            onPress={handleMute}
+            style={[styles.audioButton, !isAudioPlaying && styles.active]}
+          >
             <Ionicons name="volume-mute" size={20} color={!isAudioPlaying ? 'white' : '#666'} />
           </Pressable>
+
           <Pressable onPress={handleExit} style={styles.endButton}>
             <Text style={styles.endText}>End Story</Text>
           </Pressable>
         </View>
-
       </View>
 
       <BottomNavbar state={storyState} onPress={handleStoryStateToggle} />
@@ -333,12 +430,7 @@ export default function StoryMapScreen() {
 }
 
 const styles = StyleSheet.create({
-  fullscreen: {
-    flex: 1,
-    position: 'relative',
-    width: '100%',
-    height: '100%',
-  },
+  fullscreen: { flex: 1, position: 'relative', width: '100%', height: '100%' },
   overlay: {
     position: 'absolute',
     top: 30,
@@ -355,23 +447,9 @@ const styles = StyleSheet.create({
     elevation: 5,
     overflow: 'hidden',
   },
-  toggle: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    zIndex: 20,
-  },
-  scrollContent: {
-    marginTop: 36,
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-  },
-  header: {
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
+  toggle: { position: 'absolute', top: 8, left: 8, zIndex: 20 },
+  scrollContent: { marginTop: 36, paddingHorizontal: 20, paddingBottom: 30 },
+  header: { fontSize: 18, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
   title: {
     fontSize: 23,
     color: '#D84171',
@@ -379,75 +457,35 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 12,
   },
-  intro: {
-    fontSize: 18,
-    textAlign: 'center',
-    color: '#444',
-    marginBottom: 10,
-  },
-  theme: {
-    fontSize: 18,
-    textAlign: 'center',
-    color: '#222',
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  message: {
-    fontSize: 16,
-    textAlign: 'center',
-    paddingHorizontal: 20,
-    marginTop: 10,
-  },
-  audioControls: {
+  intro: { fontSize: 18, textAlign: 'center', color: '#444', marginBottom: 10 },
+  theme: { fontSize: 18, textAlign: 'center', color: '#222' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  message: { fontSize: 16, textAlign: 'center', paddingHorizontal: 20, marginTop: 10 },
+  topControls: {
     position: 'absolute',
     top: 6,
     right: 6,
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
     zIndex: 20,
   },
-
-  // Sostituisce audioControls
-topControls: {
-  position: 'absolute',
-  top: 6,
-  right: 6,
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 8,            // spazio tra i bottoni
-  zIndex: 20,
-},
-
-audioButton: {
-  width: 32,
-  height: 32,
-  borderRadius: 16,
-  backgroundColor: '#eee',
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-
-active: {
-  backgroundColor: '#D84171',
-},
-
-// Nuovo bottone "End Story"
-endButton: {
-  height: 32,
-  borderRadius: 16,
-  paddingHorizontal: 12,  // abbastanza spazio per il testo
-  backgroundColor: '#D84171',
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-
-endText: {
-  color: 'white',
-  fontSize: 14,
-  fontWeight: 'bold',
-},
-
+  audioButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#eee',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  active: { backgroundColor: '#D84171' },
+  endButton: {
+    height: 32,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#D84171',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  endText: { color: 'white', fontSize: 14, fontWeight: 'bold' },
 });
