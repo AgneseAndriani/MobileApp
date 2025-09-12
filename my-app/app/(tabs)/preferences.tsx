@@ -33,11 +33,16 @@ export default function PreferencesScreen() {
   const router = useRouter();
   const { userId: userIdParam, returnTo } =
     useLocalSearchParams<{ userId?: string; returnTo?: string }>();
+
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<number | null>(null);
+  const [prefetching, setPrefetching] = useState(false);
 
-  // Recupera userId: dai params oppure da AsyncStorage
+  // Se arrivo dal signup NON precompilo (è una scelta, puoi anche togliere questa condizione)
+  const cameFromSignup = returnTo === 'signup' || returnTo === '/signup';
+
+  // 1) Recupera userId: dai params oppure da AsyncStorage
   useEffect(() => {
     const loadUser = async () => {
       if (userIdParam) {
@@ -57,6 +62,37 @@ export default function PreferencesScreen() {
     loadUser();
   }, [userIdParam]);
 
+  // 2) Se è "edit" (non da signup) pre-carica le preferenze salvate e popola selectedGenres
+  useEffect(() => {
+    const preloadPreferences = async () => {
+      if (!userId || cameFromSignup) return;
+
+      try {
+        setPrefetching(true);
+        // ⚠️ usa la porta del tuo backend (il tuo Flask, nel codice sotto, fa serve su 3050)
+        const res = await fetch(`http://127.0.0.1:5000/preferences?user_id=${userId}`);
+        const json = await res.json();
+        if (json?.success && Array.isArray(json.preferences)) {
+          const genresFromDb = json.preferences
+            .map((p: any) => p.genre)
+            .filter((g: any) => typeof g === 'string' && g.trim().length > 0);
+
+          // Evita duplicati e mantieni solo quelli presenti in genreOptions (se vuoi)
+          const unique = Array.from(new Set(genresFromDb)).filter(g =>
+            genreOptions.includes(g)
+          );
+          setSelectedGenres(unique);
+        }
+      } catch (e) {
+        console.warn('Errore nel pre-caricamento preferenze', e);
+      } finally {
+        setPrefetching(false);
+      }
+    };
+
+    preloadPreferences();
+  }, [userId, cameFromSignup]);
+
   const toggleGenre = (genre: string) => {
     setSelectedGenres(prev =>
       prev.includes(genre) ? prev.filter(g => g !== genre) : [...prev, genre]
@@ -75,6 +111,7 @@ export default function PreferencesScreen() {
 
     setLoading(true);
     try {
+      // ⚠️ Assicurati che la porta sia quella giusta: nel server Python usi 3050
       const response = await fetch('http://127.0.0.1:5000/preferences/adding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -87,8 +124,6 @@ export default function PreferencesScreen() {
       const data = await response.json();
 
       if (data?.success) {
-        const cameFromSignup = returnTo === 'signup' || returnTo === '/signup';
-
         if (cameFromSignup) {
           router.replace({
             pathname: '/pointsOfInterest',
@@ -142,24 +177,25 @@ export default function PreferencesScreen() {
         resizeMode="cover"
       >
         <View style={styles.overlay}>
-          {/* Titolo */}
           <Text style={styles.title}>
             Choose your{'\n'}preferred story{'\n'}genres
           </Text>
 
-          {/* Lista scrollabile tra titolo e frecce */}
           <View style={styles.listContainer}>
-            <FlatList
-              data={genreOptions}
-              renderItem={renderGenre}
-              keyExtractor={item => item}
-              numColumns={2}
-              columnWrapperStyle={styles.row}
-              showsVerticalScrollIndicator={false}
-            />
+            {prefetching ? (
+              <ActivityIndicator />
+            ) : (
+              <FlatList
+                data={genreOptions}
+                renderItem={renderGenre}
+                keyExtractor={item => item}
+                numColumns={2}
+                columnWrapperStyle={styles.row}
+                showsVerticalScrollIndicator={false}
+              />
+            )}
           </View>
 
-          {/* Frecce in basso */}
           <View style={styles.buttonRow}>
             <Pressable style={styles.button} onPress={() => router.back()}>
               <Ionicons name="arrow-back" size={24} color="white" />
@@ -198,9 +234,9 @@ const styles = StyleSheet.create({
     marginBottom: hp('3%'),
   },
   listContainer: {
-    flex: 1, // occupa tutto lo spazio tra titolo e frecce
+    flex: 1,
     width: '100%',
-    marginBottom: hp('10%'), // lascia spazio sopra le frecce
+    marginBottom: hp('10%'),
   },
   row: { justifyContent: 'space-between', marginBottom: hp('2%') },
   genreButton: {
@@ -217,7 +253,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     alignItems: 'center',
   },
-  genreButtonSelected: { backgroundColor: '#D8D8D8' },
+  genreButtonSelected: { backgroundColor: '#D8D8D8' }, // grigio quando selezionato
   genreText: {
     color: '#D84171',
     fontWeight: '600',

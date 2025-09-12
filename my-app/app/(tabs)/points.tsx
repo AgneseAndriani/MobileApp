@@ -6,6 +6,7 @@ import {
   FlatList,
   Dimensions,
   Platform,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNavbar from '@/components/navigation/BottomNavbar';
@@ -46,6 +47,15 @@ export default function PointsScreen() {
     }
     return 'start';
   });
+
+  // ref per leggere lo stato corrente dentro ai callback TTS
+  const navbarStateRef = useRef<'start' | 'stop' | 'continue'>(navbarState);
+  useEffect(() => { navbarStateRef.current = navbarState; }, [navbarState]);
+
+  // ---- AUDIO: mute / unmute ----
+  const [isAudioPlaying, setIsAudioPlaying] = useState(true);
+  const isAudioPlayingRef = useRef<boolean>(isAudioPlaying);
+  useEffect(() => { isAudioPlayingRef.current = isAudioPlaying; }, [isAudioPlaying]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -216,14 +226,15 @@ export default function PointsScreen() {
     synth.cancel(); // interrompi eventuale utterance in corso
 
     const u = new SpeechSynthesisUtterance(chunks[i]);
-    u.lang = 'en-GB'; 
+    u.lang = 'en-GB';
     if (voiceRef.current) u.voice = voiceRef.current;
     u.rate = 1;
     u.pitch = 1;
-    u.volume = 1;
+    // volume coerente con mute/unmute (se è mute, il volume a 0 evita click all'unpause)
+    u.volume = isAudioPlayingRef.current ? 1 : 0;
 
     u.onend = () => {
-      if (navbarState === 'continue') {
+      if (navbarStateRef.current === 'continue') {
         const next = i + 1;
         if (next < chunks.length) {
           idxRef.current = next;
@@ -279,6 +290,23 @@ export default function PointsScreen() {
     }
   }, [navbarState, nextVisiblePoint, questions]);
 
+  // ---- MUTE / UNMUTE (come in StoryMapScreen) ----
+  const handleMute = () => {
+    setIsAudioPlaying(false);
+    // pausa (mantiene posizione)
+    if (synthRef.current?.speaking && !synthRef.current.paused) {
+      synthRef.current.pause();
+    }
+  };
+
+  const handleUnmute = () => {
+    setIsAudioPlaying(true);
+    // riprendi solo se siamo in "continue"
+    if (navbarStateRef.current === 'continue' && synthRef.current?.paused) {
+      synthRef.current.resume();
+    }
+  };
+
   const handleSelectAnswer = (questionKey: string, answerIndex: number) => {
     setSelectedAnswers((prev) => ({ ...prev, [questionKey]: answerIndex }));
   };
@@ -319,6 +347,26 @@ export default function PointsScreen() {
         </View>
       )}
 
+      {/* Pulsanti audio, visibili solo se la storia è attiva */}
+      {storyStarted && (
+        <View style={styles.topControls}>
+          <Pressable
+            onPress={handleUnmute}
+            style={[styles.audioButton, isAudioPlaying && styles.active]}
+          >
+            <Ionicons name="volume-high" size={20} color={isAudioPlaying ? 'white' : '#666'} />
+          </Pressable>
+
+          <Pressable
+            onPress={handleMute}
+            style={[styles.audioButton, !isAudioPlaying && styles.active]}
+          >
+            <Ionicons name="volume-mute" size={20} color={!isAudioPlaying ? 'white' : '#666'} />
+          </Pressable>
+        </View>
+      )}
+
+      
       <View style={styles.overlayContent}>
         <FlatList
           data={storyStarted && nextVisiblePoint ? [nextVisiblePoint] : []}
@@ -372,7 +420,7 @@ export default function PointsScreen() {
           }}
         />
       </View>
-
+      
       {/* Navbar */}
       <BottomNavbar
         state={navbarState}
@@ -382,6 +430,12 @@ export default function PointsScreen() {
           } else {
             const next = navbarState === 'stop' ? 'continue' : 'stop';
             setNavbarState(next);
+            // se si passa a continue e l'audio è muto, non riparte finché non fai unmute
+            if (next === 'continue' && isAudioPlayingRef.current && synthRef.current?.paused) {
+              synthRef.current.resume();
+            } else if (next === 'stop' && synthRef.current?.speaking && !synthRef.current.paused) {
+              synthRef.current.pause();
+            }
           }
         }}
       />
@@ -418,4 +472,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#5D9C3F', color: 'white', fontWeight: 'bold',
     textAlign: 'center', paddingVertical: 10, marginTop: 16, borderRadius: 20,
   },
+
+  topControls: {
+    position: 'absolute',
+    top: 35,
+    right: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 20,
+  },
+  audioButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#eee',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  active: { backgroundColor: '#D84171' },
 });

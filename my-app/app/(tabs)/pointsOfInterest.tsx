@@ -19,19 +19,19 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const poiOptions = [
-  'Playgrounds',                     // Aree_Gioco
-  'Castles',                         // Castelli
-  'Monuments',                       // Monumenti
-  'Historic Houses',                 // Case_storiche
-  'Historic Boats',                  // Barche_storiche
-  'Archaeological Sites',            // Siti_archeologici
-  'Giant Benches',                   // Panchine_Giganti
-  'Scenic Viewpoints',               // Punti_Panoramici
-  'Parks',                           // Parchi
-  'Churches',                        // Chiese
-  'Botanical Gardens',               // Botanical gardens
-  'War Memorials',                   // War memorials
-  'Public Art Installations',        // Public art installation
+  'Playgrounds',
+  'Castles',
+  'Monuments',
+  'Historic Houses',
+  'Historic Boats',
+  'Archaeological Sites',
+  'Giant Benches',
+  'Scenic Viewpoints',
+  'Parks',
+  'Churches',
+  'Botanical Gardens',
+  'War Memorials',
+  'Public Art Installations',
 ];
 
 export default function PointsOfInterestScreen() {
@@ -41,8 +41,17 @@ export default function PointsOfInterestScreen() {
 
   const [selectedPOI, setSelectedPOI] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [prefetching, setPrefetching] = useState(false);
   const [userId, setUserId] = useState<number | null>(null);
 
+  // normalizza returnTo in rotta assoluta 
+  const normReturnTo = (v?: string) => {
+    if (!v) return '';
+    return v.startsWith('/') ? v : `/${v}`;
+  };
+  const to = normReturnTo(returnTo);
+
+  // 1) Recupera userId da AsyncStorage
   useEffect(() => {
     const loadUser = async () => {
       if (userIdParam) {
@@ -61,6 +70,31 @@ export default function PointsOfInterestScreen() {
     };
     loadUser();
   }, [userIdParam]);
+
+  // 2) Precarica i POI già salvati per l'utente
+  useEffect(() => {
+    const preloadPOI = async () => {
+      if (!userId) return;
+      try {
+        setPrefetching(true);
+        const res = await fetch(`http://127.0.0.1:5000/preferences?user_id=${userId}`);
+        const json = await res.json();
+        if (json?.success && Array.isArray(json.preferences)) {
+          const poiFromDb = json.preferences
+            .map((p: any) => p.point_of_interest)
+            .filter((x: any) => typeof x === 'string' && x.trim().length > 0);
+
+          const unique = Array.from(new Set(poiFromDb)).filter(p => poiOptions.includes(p));
+          setSelectedPOI(unique);
+        }
+      } catch (e) {
+        console.warn('Errore preload POI', e);
+      } finally {
+        setPrefetching(false);
+      }
+    };
+    preloadPOI();
+  }, [userId]);
 
   const togglePOI = (poi: string) => {
     setSelectedPOI(prev =>
@@ -92,26 +126,21 @@ export default function PointsOfInterestScreen() {
       const data = await response.json();
 
       if (data?.success) {
-        const to = typeof returnTo === 'string' && returnTo.length > 0
-          ? (returnTo.startsWith('/') ? returnTo : `/${returnTo}`)
-          : '';
-
         if (to === '/preferences') {
           router.replace('/create');
           return;
         }
-
         if (to === '/account') {
           router.replace('/account');
           return;
         }
-
         if (router.canGoBack?.()) {
           router.back();
           return;
         }
-
         router.replace('/account');
+      } else {
+        Alert.alert('Save failed', data?.message || 'Please try again later.');
       }
     } catch (error) {
       console.error(error);
@@ -119,6 +148,22 @@ export default function PointsOfInterestScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleBack = () => {
+    if (to === '/account') {
+      router.replace('/account');
+      return;
+    }
+    if (to === '/preferences') {
+      router.replace('/preferences');
+      return;
+    }
+    if (router.canGoBack?.()) {
+      router.back();
+      return;
+    }
+    router.replace('/account');
   };
 
   const renderPOI = ({ item }: { item: string }) => {
@@ -140,49 +185,51 @@ export default function PointsOfInterestScreen() {
   };
 
   return (
-  <LayoutWrapper>
-    <ImageBackground
-      source={require('@/assets/images/time.png')}
-      style={styles.background}
-      resizeMode="cover"
-    >
-      <View style={styles.overlay}>
-        {/* Titolo */}
-        <Text style={styles.title}>
-          Choose your preferred{'\n'}points of interest
-        </Text>
+    <LayoutWrapper>
+      <ImageBackground
+        source={require('@/assets/images/time.png')}
+        style={styles.background}
+        resizeMode="cover"
+      >
+        <View style={styles.overlay}>
+          <Text style={styles.title}>
+            Choose your preferred{'\n'}points of interest
+          </Text>
 
-        <View style={styles.listContainer}>
-          <FlatList
-            data={poiOptions}
-            renderItem={renderPOI}
-            keyExtractor={item => item}
-            numColumns={1}
-            showsVerticalScrollIndicator={false}
-          />
-        </View>
-
-        {/* Frecce in basso */}
-        <View style={styles.buttonRow}>
-          <Pressable style={styles.button} onPress={() => router.push('/preferences')}>
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </Pressable>
-          <Pressable
-            style={[styles.button, selectedPOI.length === 0 && { opacity: 0.5 }]}
-            onPress={handleSavePOI}
-            disabled={loading || selectedPOI.length === 0}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
+          <View style={styles.listContainer}>
+            {prefetching ? (
+              <ActivityIndicator />
             ) : (
-              <Ionicons name="arrow-forward" size={24} color="white" />
+              <FlatList
+                data={poiOptions}
+                renderItem={renderPOI}
+                keyExtractor={item => item}
+                numColumns={1}
+                showsVerticalScrollIndicator={false}
+              />
             )}
-          </Pressable>
+          </View>
+
+          <View style={styles.buttonRow}>
+            <Pressable style={styles.button} onPress={handleBack}>
+              <Ionicons name="arrow-back" size={24} color="white" />
+            </Pressable>
+            <Pressable
+              style={[styles.button, selectedPOI.length === 0 && { opacity: 0.5 }]}
+              onPress={handleSavePOI}
+              disabled={loading || selectedPOI.length === 0}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Ionicons name="arrow-forward" size={24} color="white" />
+              )}
+            </Pressable>
+          </View>
         </View>
-      </View>
-    </ImageBackground>
-  </LayoutWrapper>
-);
+      </ImageBackground>
+    </LayoutWrapper>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -195,40 +242,36 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: hp('5%'),
   },
-    listContainer: {
-    flex: 1,             
+  listContainer: {
+    flex: 1,
     width: '100%',
-    marginBottom: hp('10%'), 
-    },
-
-  row: {
-    justifyContent: 'space-between',
-    marginBottom: hp('2.5%'),
+    marginBottom: hp('10%'),
   },
+  row: { justifyContent: 'space-between', marginBottom: hp('2.5%') },
   poiButton: {
-  width: '100%',               
-  minHeight: hp('8%'),
-  marginVertical: hp('1%'),
-  borderWidth: 2,
-  borderColor: '#D84171',
-  borderRadius: wp('4%'),
-  backgroundColor: '#fff',
-  shadowColor: '#000',
-  shadowOpacity: 0.08,
-  shadowOffset: { width: 0, height: 2 },
-  shadowRadius: 3,
-  justifyContent: 'center',
-  alignItems: 'center',
-  paddingHorizontal: wp('4%'),
-  paddingVertical: hp('1.5%'),
-},
-  poiButtonSelected: { backgroundColor: '#D8D8D8' },
+    width: '100%',
+    minHeight: hp('8%'),
+    marginVertical: hp('1%'),
+    borderWidth: 2,
+    borderColor: '#D84171',
+    borderRadius: wp('4%'),
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: wp('4%'),
+    paddingVertical: hp('1.5%'),
+  },
+  poiButtonSelected: { backgroundColor: '#D8D8D8' }, // grigio quando selezionato
   poiText: {
-  color: '#D84171',
-  fontWeight: '600',
-  fontSize: wp('4.2%'),
-  textAlign: 'center',
-},
+    color: '#D84171',
+    fontWeight: '600',
+    fontSize: wp('4.2%'),
+    textAlign: 'center',
+  },
   poiTextSelected: { color: '#333' },
   button: {
     width: wp('12%'),
